@@ -22,19 +22,18 @@ from tqdm import tqdm
 from vllm import LLM, SamplingParams
 
 from sal.config import Config
-from sal.models.prm import PRM
-
-from .utils import Beam, build_conv, generate_k_steps, last, list_mean
+from sal.models.reward_models import PRM
+from .utils import Beam, build_conv, generate_k_steps, last
 
 logger = logging.getLogger()
 
 
-def beamsearch(batch_of_prompts, config: Config, llm: LLM, prm: PRM):
+def beamsearch(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
     sampling_params = SamplingParams(
         temperature=config.temperature,
         max_tokens=2048,
         top_p=config.top_p,
-        stop=["\n\n", "\n"],
+        stop=["\n\n"],
         include_stop_str_in_output=True,
         n=1,
     )

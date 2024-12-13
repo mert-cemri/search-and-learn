@@ -20,7 +20,7 @@ from transformers import HfArgumentParser
 from vllm import LLM
 
 from sal.config import Config
-from sal.models.prm import PRM
+from sal.models.reward_models import load_prm
 from sal.search import beam_search, best_of_n, parallel_beam_search
 from sal.utils.data import get_dataset, save_dataset
 from sal.utils.score import score
@@ -47,12 +47,12 @@ def main():
     num_gpus = torch.cuda.device_count()
     llm = LLM(
         model=config.model_path,
-        gpu_memory_utilization=0.5,
+        gpu_memory_utilization=config.gpu_memory_utilization,
         enable_prefix_caching=True,
         seed=config.seed,
         tensor_parallel_size=num_gpus,
     )
-    prm = PRM(config)
+    prm = load_prm(config)
 
     dataset = get_dataset(config)
     dataset = dataset.map(
