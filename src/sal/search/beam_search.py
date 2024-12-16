@@ -15,7 +15,6 @@
 import copy
 import logging
 from collections import defaultdict
-from typing import Literal
 
 import numpy as np
 from tqdm import tqdm
