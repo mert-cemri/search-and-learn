@@ -1,5 +1,5 @@
 # Recipes
-Here we include yaml configs to run the three test time compute variants detailed in the blog post:
+Here we include yaml configs to run the three test time compute variants detailed in the [blog post](https://huggingface.co/spaces/HuggingFaceH4/blogpost-scaling-test-time-compute-with-open-models):
 - [best of n](recipes/Llama-3.2-1B-Instruct/best_of_n.yaml): `recipes/Llama-3.2-1B-Instruct/best_of_n.yaml`
 - [beam search](recipes/Llama-3.2-1B-Instruct/beam_search.yaml): `recipes/Llama-3.2-1B-Instruct/beam_search.yaml` for `n=16`
 - [diverse verifier beam search (DVTS)](recipes/Llama-3.2-1B-Instruct/dvts.yaml): `recipes/Llama-3.2-1B-Instruct/dvts.yaml`
