@@ -21,7 +21,7 @@ from vllm import LLM
 
 from sal.config import Config
 from sal.models.reward_models import load_prm
-from sal.search import beam_search, best_of_n, parallel_beam_search
+from sal.search import beam_search, best_of_n, dvts
 from sal.utils.data import get_dataset, save_dataset
 from sal.utils.score import score
 
@@ -33,7 +33,7 @@ logger.setLevel(logging.INFO)
 
 APPROACHES = {
     "beam_search": beam_search,
-    "parallel_beam_search": parallel_beam_search,
+    "dvts": dvts,
     "best_of_n": best_of_n,
 }
 
@@ -64,7 +64,7 @@ def main():
         load_from_cache_file=False,
     )
 
-    dataset = score(dataset)
+    dataset = score(dataset, config)
 
     save_dataset(dataset, config)
     logger.info("Done 🔥!")

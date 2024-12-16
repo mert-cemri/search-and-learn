@@ -23,17 +23,18 @@ from vllm import LLM, SamplingParams
 
 from sal.config import Config
 from sal.models.reward_models import PRM
-from .utils import Beam, build_conv, generate_k_steps, last
+from .utils import Beam, build_conv, generate_k_steps
+from sal.utils.score import aggregate_scores
 
 logger = logging.getLogger()
 
 
-def beamsearch(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
+def _dvts(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
     sampling_params = SamplingParams(
         temperature=config.temperature,
         max_tokens=2048,
         top_p=config.top_p,
-        stop=["\n\n"],
+        stop=["\n\n"], # we consider that a step in the problem is indicated by a double newline
         include_stop_str_in_output=True,
         n=1,
     )
@@ -81,7 +82,8 @@ def beamsearch(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
 
         tokenizer = llm.get_tokenizer()
         # TODO: set the augmented template from a file
-        tokenizer.chat_template = '{%- if custom_tools is defined %}\n    {%- set tools = custom_tools %}\n{%- endif %}\n{%- if not tools_in_user_message is defined %}\n    {%- set tools_in_user_message = true %}\n{%- endif %}\n{%- if not date_string is defined %}\n    {%- if strftime_now is defined %}\n        {%- set date_string = strftime_now("%d %b %Y") %}\n    {%- else %}\n        {%- set date_string = "26 Jul 2024" %}\n    {%- endif %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n\n{#- This block extracts the system message, so we can slot it into the right place. #}\n{%- if messages[0][\'role\'] == \'system\' %}\n    {%- set system_message = messages[0][\'content\']|trim %}\n    {%- set messages = messages[1:] %}\n{%- else %}\n    {%- set system_message = "" %}\n{%- endif %}\n\n{#- System message #}\n{{- "<|start_header_id|>system<|end_header_id|>\\n\\n" }}\n{%- if tools is not none %}\n    {{- "Environment: ipython\\n" }}\n{%- endif %}\n{{- "Cutting Knowledge Date: December 2023\\n" }}\n{{- "Today Date: " + date_string + "\\n\\n" }}\n{%- if tools is not none and not tools_in_user_message %}\n    {{- "You have access to the following functions. To call a function, please respond with JSON for a function call." }}\n    {{- \'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.\' }}\n    {{- "Do not use variables.\\n\\n" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- "\\n\\n" }}\n    {%- endfor %}\n{%- endif %}\n{{- system_message }}\n{{- "<|eot_id|>" }}\n\n{#- Custom tools are passed in a user message with some extra guidance #}\n{%- if tools_in_user_message and not tools is none %}\n    {#- Extract the first user message so we can plug it in here #}\n    {%- if messages | length != 0 %}\n        {%- set first_user_message = messages[0][\'content\']|trim %}\n        {%- set messages = messages[1:] %}\n    {%- else %}\n        {{- raise_exception("Cannot put tools in the first user message when there\'s no first user message!") }}\n{%- endif %}\n    {{- \'<|start_header_id|>user<|end_header_id|>\\n\\n\' -}}\n    {{- "Given the following functions, please respond with a JSON for a function call " }}\n    {{- "with its proper arguments that best answers the given prompt.\\n\\n" }}\n    {{- \'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.\' }}\n    {{- "Do not use variables.\\n\\n" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- "\\n\\n" }}\n    {%- endfor %}\n    {{- first_user_message + "<|eot_id|>"}}\n{%- endif %}\n\n{%- for message in messages %}\n    {%- if not (message.role == \'ipython\' or message.role == \'tool\' or \'tool_calls\' in message) %}\n        {{- \'<|start_header_id|>\' + message[\'role\'] + \'<|end_header_id|>\\n\\n\'+ message[\'content\'] + \'<|eot_id|>\' }}\n    {%- elif \'tool_calls\' in message %}\n        {%- if not message.tool_calls|length == 1 %}\n            {{- raise_exception("This model only supports single tool-calls at once!") }}\n        {%- endif %}\n        {%- set tool_call = message.tool_calls[0].function %}\n        {{- \'<|start_header_id|>assistant<|end_header_id|>\\n\\n\' -}}\n        {{- \'{"name": "\' + tool_call.name + \'", \' }}\n        {{- \'"parameters": \' }}\n        {{- tool_call.arguments | tojson }}\n        {{- "}" }}\n        {{- "<|eot_id|>" }}\n    {%- elif message.role == "tool" or message.role == "ipython" %}\n        {{- "<|start_header_id|>ipython<|end_header_id|>\\n\\n" }}\n        {%- if message.content is mapping or message.content is iterable %}\n            {{- message.content | tojson }}\n        {%- else %}\n            {{- message.content }}\n        {%- endif %}\n        {{- "<|eot_id|>" }}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- \'<|start_header_id|>assistant<|end_header_id|>\\n\\n\' }}\n{%- endif %}\n'
+        if config.custom_chat_template is not None:
+            tokenizer.chat_template = config.custom_chat_template
         templated_convs = tokenizer.apply_chat_template(
             convs,
             add_generation_prompt=add_generation_prompt,
@@ -111,9 +113,8 @@ def beamsearch(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
 
         all_scores = prm.score(prompts, completions)
 
-        agg_fn = last  # TODO: we should strip out the reward for previous steps in the score method
         for beam, scores in zip(gen_beams, all_scores, strict=True):
-            agg_scores = [agg_fn(s) for s in scores]
+            agg_scores = [aggregate_scores(s, config.agg_strategy) for s in scores]
             best_score_ind = np.argmax(agg_scores)
             beam.all_scores = scores
             beam.previous_text = beam.current_text
@@ -155,9 +156,9 @@ def beamsearch(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
     return output
 
 
-def parallel_beam_search(examples, config: Config, llm: LLM, prm: PRM):
+def dvts(examples, config: Config, llm: LLM, prm: PRM):
     problems = examples["problem"]
-    beam_results = beamsearch(problems, config, llm, prm)
+    beam_results = _dvts(problems, config, llm, prm)
 
     # group together alike beams and store in the dataset
     grouped_results = defaultdict(list)
@@ -165,13 +166,12 @@ def parallel_beam_search(examples, config: Config, llm: LLM, prm: PRM):
         grouped_results[results.prompt].append(results)
 
     results = {"completions": [], "pred": [], "completion_tokens": [], "scores": []}
-    agg_fn = last  # TODO: we should strip out the reward for previous steps in the score method
 
     for p in problems:
         beams = grouped_results[p]
         results["completions"].append([b.current_text for b in beams])
         results["pred"].append(
-            beams[np.argmax([agg_fn(b.best_scores) for b in beams])].current_text
+            beams[np.argmax([aggregate_scores(b.best_scores, config.agg_strategy) for b in beams])].current_text
         )
         results["scores"].append([b.best_scores for b in beams])
         results["completion_tokens"].append(-1)

@@ -63,6 +63,8 @@ class Beam:
     previous_text: str | None
     pruned: False
     history: list[str]
+    completed: bool = False
+    completion_tokens: int=0    
 
 
 @dataclass
