@@ -4,7 +4,7 @@ Here we include yaml configs to run the three test time compute variants detaile
 - [beam search](recipes/Llama-3.2-1B-Instruct/beam_search.yaml): `recipes/Llama-3.2-1B-Instruct/beam_search.yaml` for `n=16`
 - [diverse verifier beam search (DVTS)](recipes/Llama-3.2-1B-Instruct/dvts.yaml): `recipes/Llama-3.2-1B-Instruct/dvts.yaml`
 
-Each approach can be launched by specifying the accociated yaml file:
+Each approach can be launched by specifying the associated yaml file:
 ```
 python scripts/test_time_compute.py <YAML_CONFIG>
 # for example:
