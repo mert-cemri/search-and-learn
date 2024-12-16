@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-
+from typing import Literal
 from huggingface_hub import (
     create_branch,
     get_full_repo_name,
@@ -27,7 +27,7 @@ from sal.utils.hub import get_dataset_revisions
 
 @dataclass
 class Config:
-    approach: str = "parallel_beamsearch"  # Options: "beam_search", "parallel_beamsearch", "best_of_n"
+    approach: Literal["best_of_n", "beam_search", "dvts"] = "best_of_n"
     model_path: str = "meta-llama/Llama-3.2-1B-Instruct"
     gpu_memory_utilization: float = (
         0.5  # vllm is allocated 0.5 of GPU memory, the PRM uses the rest
