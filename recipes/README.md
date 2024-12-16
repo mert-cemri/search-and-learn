@@ -1,8 +1,8 @@
 # Recipes
 Here we include yaml configs to run the three test time compute variants detailed in the blog post:
-- [best of n](recipes/Llama-3.2-1B-Instruct/best_of_n.yaml): `recipes/Llama-3.2-1B-Instruct/best_of_n.yaml`
-- [beam search](recipes/Llama-3.2-1B-Instruct/beam_search.yaml): `recipes/Llama-3.2-1B-Instruct/beam_search.yaml` for `n=16`
-- [diverse verifier beam search (DVTS)](recipes/Llama-3.2-1B-Instruct/dvts.yaml): `recipes/Llama-3.2-1B-Instruct/dvts.yaml`
+- Best of N: [`recipes/Llama-3.2-1B-Instruct/best_of_n.yaml`](recipes/Llama-3.2-1B-Instruct/best_of_n.yaml)
+- Beam Search: [`recipes/Llama-3.2-1B-Instruct/beam_search.yaml`](recipes/Llama-3.2-1B-Instruct/beam_search.yaml)
+- Diverse Verifier Beam Search (DVTS): [`recipes/Llama-3.2-1B-Instruct/dvts.yaml`](recipes/Llama-3.2-1B-Instruct/dvts.yaml)
 
 Each approach can be launched by specifying the associated yaml file:
 ```
