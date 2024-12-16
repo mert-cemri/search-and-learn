@@ -16,7 +16,6 @@
 import logging
 
 import torch
-from transformers import HfArgumentParser
 from vllm import LLM
 
 from sal.config import Config
