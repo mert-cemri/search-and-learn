@@ -15,6 +15,7 @@
 
 from dataclasses import dataclass
 from typing import Literal
+
 from huggingface_hub import get_full_repo_name
 
 from sal.utils.hub import get_dataset_revisions
@@ -94,7 +95,9 @@ class Config:
             else:
                 raise ValueError(f"Unknown approach {self.approach}")
             if self.dataset_start is not None and self.dataset_end is not None:
-                self.revision = f"{self.revision}--chunk-{self.dataset_start}_{self.dataset_end}"
+                self.revision = (
+                    f"{self.revision}--chunk-{self.dataset_start}_{self.dataset_end}"
+                )
 
             # Early exit if the revision on the Hub already exists
             if not self.overwrite_hub_revision and self.revision in revisions:

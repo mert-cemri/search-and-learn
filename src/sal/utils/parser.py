@@ -18,13 +18,16 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import Any, List, NewType, Optional, Tuple, Union
-from transformers import HfArgumentParser
 
+from transformers import HfArgumentParser
 
 DataClassType = NewType("DataClassType", Any)
 
+
 class H4ArgumentParser(HfArgumentParser):
-    def parse_yaml_and_args(self, yaml_arg: str, other_args: Optional[List[str]] = None) -> List[dataclass]:
+    def parse_yaml_and_args(
+        self, yaml_arg: str, other_args: Optional[List[str]] = None
+    ) -> List[dataclass]:
         """
         Parse a yaml file and overwrite the default/loaded values with the values provided to the command line.
 
@@ -40,7 +43,9 @@ class H4ArgumentParser(HfArgumentParser):
 
         outputs = []
         # strip other args list into dict of key-value pairs
-        other_args = {arg.split("=")[0].strip("-"): arg.split("=")[1] for arg in other_args}
+        other_args = {
+            arg.split("=")[0].strip("-"): arg.split("=")[1] for arg in other_args
+        }
         used_args = {}
 
         # overwrite the default/loaded value with the value provided to the command line
@@ -74,7 +79,9 @@ class H4ArgumentParser(HfArgumentParser):
                     if arg not in used_args:
                         used_args[arg] = val
                     else:
-                        raise ValueError(f"Duplicate argument provided: {arg}, may cause unexpected behavior")
+                        raise ValueError(
+                            f"Duplicate argument provided: {arg}, may cause unexpected behavior"
+                        )
 
             obj = data_class(**inputs)
             outputs.append(obj)
@@ -82,17 +89,25 @@ class H4ArgumentParser(HfArgumentParser):
         unparsed_args = set(other_args.keys()) - set(used_args.keys())
 
         if len(unparsed_args) > 0:
-            raise ValueError(f"The following arguments were not parsed: {unparsed_args}")
+            raise ValueError(
+                f"The following arguments were not parsed: {unparsed_args}"
+            )
         return outputs
 
-    def parse(self, allow_extra_keys=False) -> Union[DataClassType, Tuple[DataClassType]]:
+    def parse(
+        self, allow_extra_keys=False
+    ) -> Union[DataClassType, Tuple[DataClassType]]:
         if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
             # If we pass only one argument to the script and it's the path to a YAML file,
             # let's parse it to get our arguments.
-            output = self.parse_yaml_file(os.path.abspath(sys.argv[1]), allow_extra_keys=allow_extra_keys)
+            output = self.parse_yaml_file(
+                os.path.abspath(sys.argv[1]), allow_extra_keys=allow_extra_keys
+            )
         # parse command line args and yaml file
         elif len(sys.argv) > 2 and sys.argv[1].endswith(".yaml"):
-            output = self.parse_yaml_and_args(os.path.abspath(sys.argv[1]), sys.argv[2:])
+            output = self.parse_yaml_and_args(
+                os.path.abspath(sys.argv[1]), sys.argv[2:]
+            )
         # parse command line args only
         else:
             output = self.parse_args_into_dataclasses()

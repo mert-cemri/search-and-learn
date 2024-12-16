@@ -22,7 +22,6 @@ from transformers import HfArgumentParser
 
 from sal.utils.hub import get_dataset_revisions
 
-
 """Merge revisions of a dataset into a single config.
 
 Usage:
@@ -73,7 +72,9 @@ def main():
     print(f"Merging {len(revisions)} revisions to create config `{merged_config}`")
 
     # Prepare arguments for multiprocessing
-    pool_args = [(args.dataset_name, revision, args.dataset_split) for revision in revisions]
+    pool_args = [
+        (args.dataset_name, revision, args.dataset_split) for revision in revisions
+    ]
 
     # Use multiprocessing to load datasets in parallel
     with Pool(cpu_count()) as pool:
@@ -89,7 +90,9 @@ def main():
     merged_dataset = concatenate_datasets(datasets)
 
     # Sanity check
-    if "problem" in merged_dataset.column_names and len(merged_dataset.unique("problem")) != len(merged_dataset):
+    if "problem" in merged_dataset.column_names and len(
+        merged_dataset.unique("problem")
+    ) != len(merged_dataset):
         raise ValueError("Found duplicate problems")
     if "lighteval_MATH" in merged_config and len(merged_dataset) != 5000:
         raise ValueError(f"Expected 5000 samples, got {len(merged_dataset)}")
@@ -98,7 +101,10 @@ def main():
 
     # Push merged dataset to the hub
     url = merged_dataset.push_to_hub(
-        args.dataset_name, config_name=merged_config, split=args.dataset_split, private=True
+        args.dataset_name,
+        config_name=merged_config,
+        split=args.dataset_split,
+        private=True,
     )
     print(f"Pushed merged dataset to {url}")
 
