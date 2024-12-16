@@ -17,9 +17,24 @@ The [recipes readme](recipes/README.md) includes launch commands and config file
 
 
 ## Citation
-TODO
+If you use this codebase or the blogpost it would be great if you could cite us:
 ```
-
+@misc{beeching2024scalingtesttimecompute,
+      title={Scaling test-time compute with open models},
+      author={Edward Beeching and Lewis Tunstall and Sasha Rush},
+      url={https://huggingface.co/spaces/HuggingFaceH4/blogpost-scaling-test-time-compute},
+}
 ```
-
+Please also cite this work:
+```
+@misc{snell2024scalingllmtesttimecompute,
+      title={Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters}, 
+      author={Charlie Snell and Jaehoon Lee and Kelvin Xu and Aviral Kumar},
+      year={2024},
+      eprint={2408.03314},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2408.03314}, 
+}
+```
 
