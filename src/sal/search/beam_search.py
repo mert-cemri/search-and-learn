@@ -12,17 +12,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import copy
+import logging
+from collections import defaultdict
 from typing import Literal
-from .utils import Beam, build_conv, generate_k_steps, last
-from vllm import LLM, SamplingParams
+
+import numpy as np
 from tqdm import tqdm
 from vllm import LLM, SamplingParams
-import numpy as np
-from collections import defaultdict
+
 from sal.config import Config
 from sal.models.reward_models import PRM
+
+from .utils import Beam, build_conv, generate_k_steps, last
+
 logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
 
@@ -69,11 +72,17 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
         # Duplicate active beams to ensure that we have config.n beams per iteration
         if len(active_beams) != config.n:
             repeats = (config.n // len(active_beams)) + 1
-            logger.debug(f"Extending active_beams with {repeats} repetitions to reach size {config.n}")
-            extended_active_beams = [copy.deepcopy(b) for b in (active_beams * repeats)[: config.n]]
+            logger.debug(
+                f"Extending active_beams with {repeats} repetitions to reach size {config.n}"
+            )
+            extended_active_beams = [
+                copy.deepcopy(b) for b in (active_beams * repeats)[: config.n]
+            ]
             active_beams = extended_active_beams
             if len(active_beams) != config.n:
-                raise ValueError(f"Expected {config.n} active beams, but got {len(active_beams)}")
+                raise ValueError(
+                    f"Expected {config.n} active beams, but got {len(active_beams)}"
+                )
 
         if i == config.num_iterations - 1:
             # Last iteration, generate to EOS
@@ -84,7 +93,10 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
                 n=1,
             )
 
-        convs = [build_conv(b.prompt, b.current_text, config.system_prompt) for b in active_beams]
+        convs = [
+            build_conv(b.prompt, b.current_text, config.system_prompt)
+            for b in active_beams
+        ]
         continue_final_message = i > 0
         add_generation_prompt = i == 0
 
@@ -98,7 +110,9 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
             tokenize=False,
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
-        gen_results = generate_k_steps(templated_convs, lookahead, llm, sampling_params, 1)
+        gen_results = generate_k_steps(
+            templated_convs, lookahead, llm, sampling_params, 1
+        )
 
         prompts, completions = [], []
         for beam, gen_result in zip(active_beams, gen_results, strict=True):
@@ -109,7 +123,11 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
             beam.current_text += beam.next_texts[0]
             beam.history.append(beam.next_texts[0])
 
-            if beam.stop_reasons[0] == "EOS" or beam.stop_reasons[0] == "length" or beam.next_texts[0] == "":
+            if (
+                beam.stop_reasons[0] == "EOS"
+                or beam.stop_reasons[0] == "length"
+                or beam.next_texts[0] == ""
+            ):
                 beam.completed = True
                 completed_beams.append(beam)
             prompts.append(beam.prompt)
@@ -117,13 +135,18 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
 
         scores = prm.score(prompts, completions)
 
-        agg_scores = [[aggregate_scores(s, config.agg_strategy) for s in score] for score in scores]
+        agg_scores = [
+            [aggregate_scores(s, config.agg_strategy) for s in score]
+            for score in scores
+        ]
 
         for beam, score in zip(active_beams, scores, strict=True):
             beam.all_scores = score[0]
 
         # Now filter active_beams and agg_scores for beams that are completed
-        agg_scores = [agg_scores[i] for i, b in enumerate(active_beams) if not b.completed]
+        agg_scores = [
+            agg_scores[i] for i, b in enumerate(active_beams) if not b.completed
+        ]
         active_beams = [b for b in active_beams if not b.completed]
 
         # Early stopping if all beams are completed
@@ -136,12 +159,16 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
             unique_beam_dict = {}
             for i, b in enumerate(active_beams):
                 if b.current_text not in unique_beam_dict:
-                    unique_beam_dict[b.current_text] = i  # Map the unique text to its index
+                    unique_beam_dict[b.current_text] = (
+                        i  # Map the unique text to its index
+                    )
             active_beams = [active_beams[i] for i in unique_beam_dict.values()]
             agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
 
         # Get indices for top (config.n / config.beam_width) completions
-        top_indices = np.argsort(np.array(agg_scores).flatten())[-(config.n // config.beam_width) :]
+        top_indices = np.argsort(np.array(agg_scores).flatten())[
+            -(config.n // config.beam_width) :
+        ]
 
         for idx, beam in enumerate(active_beams):
             if idx not in top_indices:
@@ -150,7 +177,9 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
     # Filter completed beams for those with top config.n scores
     if config.sort_completed:
         completed_beams = sorted(
-            completed_beams, key=lambda b: aggregate_scores(b.all_scores, config.agg_strategy), reverse=True
+            completed_beams,
+            key=lambda b: aggregate_scores(b.all_scores, config.agg_strategy),
+            reverse=True,
         )[: config.n]
     else:
         completed_beams = completed_beams[: config.n]
@@ -158,8 +187,12 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
     if len(completed_beams) != config.n:
         # If we don't have enough completed_beams, duplicate until we reach config.n
         repeats = (config.n // len(completed_beams)) + 1
-        logger.debug(f"Extending completed_beams with {repeats} repetitions to reach size {config.n}")
-        extended_completed_beams = [copy.deepcopy(b) for b in (completed_beams * repeats)[: config.n]]
+        logger.debug(
+            f"Extending completed_beams with {repeats} repetitions to reach size {config.n}"
+        )
+        extended_completed_beams = [
+            copy.deepcopy(b) for b in (completed_beams * repeats)[: config.n]
+        ]
         completed_beams = extended_completed_beams
 
     return completed_beams
@@ -179,7 +212,9 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM):
     for p in problems:
         beams = grouped_results[p]
         completions = [b.current_text for b in beams]
-        agg_scores = [aggregate_scores(b.all_scores, config.agg_strategy) for b in beams]
+        agg_scores = [
+            aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
+        ]
         pred = completions[np.argmax(agg_scores)]
         results["completions"].append(completions)
         results["scores"].append([b.all_scores for b in beams])
@@ -187,4 +222,3 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM):
         results["completion_tokens"].append([b.completion_tokens for b in beams])
 
     return results
-

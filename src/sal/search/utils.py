@@ -64,7 +64,7 @@ class Beam:
     pruned: False
     history: list[str]
     completed: bool = False
-    completion_tokens: int=0    
+    completion_tokens: int = 0
 
 
 @dataclass

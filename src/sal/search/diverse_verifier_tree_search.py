@@ -23,8 +23,9 @@ from vllm import LLM, SamplingParams
 
 from sal.config import Config
 from sal.models.reward_models import PRM
-from .utils import Beam, build_conv, generate_k_steps
 from sal.utils.score import aggregate_scores
+
+from .utils import Beam, build_conv, generate_k_steps
 
 logger = logging.getLogger()
 
@@ -34,7 +35,9 @@ def _dvts(batch_of_prompts: list[str], config: Config, llm: LLM, prm: PRM):
         temperature=config.temperature,
         max_tokens=2048,
         top_p=config.top_p,
-        stop=["\n\n"], # we consider that a step in the problem is indicated by a double newline
+        stop=[
+            "\n\n"
+        ],  # we consider that a step in the problem is indicated by a double newline
         include_stop_str_in_output=True,
         n=1,
     )
@@ -171,7 +174,14 @@ def dvts(examples, config: Config, llm: LLM, prm: PRM):
         beams = grouped_results[p]
         results["completions"].append([b.current_text for b in beams])
         results["pred"].append(
-            beams[np.argmax([aggregate_scores(b.best_scores, config.agg_strategy) for b in beams])].current_text
+            beams[
+                np.argmax(
+                    [
+                        aggregate_scores(b.best_scores, config.agg_strategy)
+                        for b in beams
+                    ]
+                )
+            ].current_text
         )
         results["scores"].append([b.best_scores for b in beams])
         results["completion_tokens"].append(-1)

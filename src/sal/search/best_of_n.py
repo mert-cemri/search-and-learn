@@ -15,17 +15,21 @@
 
 import numpy as np
 from vllm import LLM, SamplingParams
-from sal.utils.score import aggregate_scores
 
 from sal.config import Config
 from sal.models.reward_models import PRM
+from sal.utils.score import aggregate_scores
+
 
 def best_of_n(x, config: Config, llm: LLM, prm: PRM):
     tokenizer = llm.get_tokenizer()
 
     convs = [
-        [{"role": "system", "content": config.system_prompt}, {"role": "user", "content": prompt}]
-        for prompt in x["problem"]*config.n
+        [
+            {"role": "system", "content": config.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        for prompt in x["problem"] * config.n
     ]
     tokenizer = llm.get_tokenizer()
     # TODO: set the augmented template from a file
@@ -53,12 +57,20 @@ def best_of_n(x, config: Config, llm: LLM, prm: PRM):
         use_tqdm=False,
     )
     if len(responses) != len(x["problem"]) * config.n:
-        raise ValueError(f"Generated {len(responses)} responses instead of {len(x['problem'] * config.n)}")
+        raise ValueError(
+            f"Generated {len(responses)} responses instead of {len(x['problem'] * config.n)}"
+        )
 
     for i in range(len(completions)):
-        completions[i] = [output.text for r in responses[i * config.n : (i + 1) * config.n] for output in r.outputs]
+        completions[i] = [
+            output.text
+            for r in responses[i * config.n : (i + 1) * config.n]
+            for output in r.outputs
+        ]
         completion_tokens[i] = [
-            len(output.token_ids) for r in responses[i * config.n : (i + 1) * config.n] for output in r.outputs
+            len(output.token_ids)
+            for r in responses[i * config.n : (i + 1) * config.n]
+            for output in r.outputs
         ]
 
     # Check we generated the correct number of completions for each prompt
@@ -67,7 +79,9 @@ def best_of_n(x, config: Config, llm: LLM, prm: PRM):
             raise ValueError(f"Generated {len(c)} completions instead of {config.n}")
 
     scores = prm.score(x["problem"], completions)
-    agg_scores = [[aggregate_scores(s, config.agg_strategy) for s in score] for score in scores]
+    agg_scores = [
+        [aggregate_scores(s, config.agg_strategy) for s in score] for score in scores
+    ]
 
     # Select the completion with the highest score
     pred = [completion[np.argmax(s)] for completion, s in zip(completions, agg_scores)]

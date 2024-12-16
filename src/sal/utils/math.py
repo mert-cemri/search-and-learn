@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import random
 import signal
 from collections import defaultdict
@@ -25,9 +26,10 @@ from sympy import latex, simplify
 
 from .qwen_math_parser import extract_answer, strip_string
 
-import math
 
-def aggregate_scores(scores: list[float], agg_strategy: Literal["min", "prod", "last"]) -> float:
+def aggregate_scores(
+    scores: list[float], agg_strategy: Literal["min", "prod", "last"]
+) -> float:
     if agg_strategy == "min":
         return min(scores)
     elif agg_strategy == "prod":
@@ -36,7 +38,8 @@ def aggregate_scores(scores: list[float], agg_strategy: Literal["min", "prod", "
         return scores[-1]
     else:
         raise ValueError(f"Invalid aggregation strategy: {agg_strategy}")
-    
+
+
 # Timeout exception
 class TimeoutException(Exception):
     pass

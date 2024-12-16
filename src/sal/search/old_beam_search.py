@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # Copyright 2024 The HuggingFace Inc. team. All rights reserved.
 #
@@ -15,31 +14,32 @@
 # limitations under the License.
 
 import logging
+from collections import defaultdict
 from typing import Any
 
-from vllm import LLM, SamplingParams
 import numpy as np
+from tqdm import tqdm
+from vllm import LLM, SamplingParams
+
 from sal.config import Config
 from sal.models.prm import RM
-from .utils import Beam, build_conv, generate_k_steps, last
-from tqdm import tqdm
 
-from collections import defaultdict
+from .utils import Beam, build_conv, generate_k_steps, last
+
 logger = logging.getLogger()
 
+
 # TestTimeComputeAlgorithm is a class that is used to define the interface for all test-time compute algorithms.
-class TTCAlgorithm():
-    def __init__(self, config:Config, llm:LLM, reward_model:RM):
+class TTCAlgorithm:
+    def __init__(self, config: Config, llm: LLM, reward_model: RM):
         self.config = config
         self.llm = llm
         self.reward_model = reward_model
-    
-    
+
     def run(batch_of_prompts: list[str]) -> list[Beam]:
         # to run the algorithm on a list of prompts
         raise NotImplementedError
-    
-    
+
     def __call__(self, *args, **kwds):
         # to be passed to the datasets map function
         raise NotImplementedError
@@ -48,17 +48,16 @@ class TTCAlgorithm():
 class BeamSearch(TTCAlgorithm):
     def __init__():
         pass
-    
-    
+
     def run(self, batch_of_prompts: list[str]) -> list[Beam]:
         sampling_params = SamplingParams(
-                temperature=self.config.temperature,
-                max_tokens=2048,
-                top_p=self.config.top_p,
-                stop=["\n\n", "\n"],
-                include_stop_str_in_output=True,
-                n=1,
-            )
+            temperature=self.config.temperature,
+            max_tokens=2048,
+            top_p=self.config.top_p,
+            stop=["\n\n", "\n"],
+            include_stop_str_in_output=True,
+            n=1,
+        )
 
         beams: list[Beam] = []
         for prompt in batch_of_prompts:
@@ -110,9 +109,15 @@ class BeamSearch(TTCAlgorithm):
                 continue_final_message=continue_final_message,
                 tokenize=False,
             )
-            lookahead = 0 if i == self.config.num_iterations - 1 else self.config.lookahead
+            lookahead = (
+                0 if i == self.config.num_iterations - 1 else self.config.lookahead
+            )
             gen_results = generate_k_steps(
-                templated_convs, lookahead, self.llm, sampling_params, self.config.beam_width
+                templated_convs,
+                lookahead,
+                self.llm,
+                sampling_params,
+                self.config.beam_width,
             )
 
             prompts, completions = [], []
@@ -127,7 +132,9 @@ class BeamSearch(TTCAlgorithm):
                         f"beam {beam.index} has {len(beam.next_texts)} completions"
                     )
                 prompts.append(beam.prompt)
-                completions.append([beam.current_text + t for t in beam.lookahead_texts])
+                completions.append(
+                    [beam.current_text + t for t in beam.lookahead_texts]
+                )
 
             # scoring and chose best generation per beam TODO: add option for selection across beams within the same prompt
 
@@ -176,8 +183,9 @@ class BeamSearch(TTCAlgorithm):
 
         return output
 
-    
-    def __call__(self, examples: dict[str, list[str|Any]]) -> dict[str, list[str|Any]]:
+    def __call__(
+        self, examples: dict[str, list[str | Any]]
+    ) -> dict[str, list[str | Any]]:
         problems = examples["problem"]
         beam_results = self.run(problems)
 

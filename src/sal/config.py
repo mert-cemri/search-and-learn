@@ -27,11 +27,11 @@ from sal.utils.hub import get_dataset_revisions
 
 @dataclass
 class Config:
-    approach: str = (
-        "parallel_beamsearch"  # Options: "beam_search", "parallel_beamsearch", "best_of_n"
-    )
+    approach: str = "parallel_beamsearch"  # Options: "beam_search", "parallel_beamsearch", "best_of_n"
     model_path: str = "meta-llama/Llama-3.2-1B-Instruct"
-    gpu_memory_utilization: float = 0.5 # vllm is allocated 0.5 of GPU memory, the PRM uses the rest
+    gpu_memory_utilization: float = (
+        0.5  # vllm is allocated 0.5 of GPU memory, the PRM uses the rest
+    )
     prm_path: str = "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data"
     # Output Related Options
     output_dir: str = None
@@ -68,11 +68,10 @@ class Config:
     beam_width: int = 4  # m in the paper
     num_iterations: int = 40
     lookahead: int = 1
-    
+
     # Beam search options:
     filter_duplicates: bool = False
     sort_completed: bool = False
-    
 
     def __post_init__(self):
         if self.approach == "dvts":
@@ -82,7 +81,7 @@ class Config:
 
         if self.approach == "beam_search":
             # TODO: implemented a batched version
-            if self.search_batch_size !=1:
+            if self.search_batch_size != 1:
                 raise ValueError("search_batch_size should be 1 for beam_search")
 
         # Setting up push to hub dataset
