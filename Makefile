@@ -3,7 +3,7 @@
 # make sure to test the local checkout in scripts and not the pre-installed one (don't use quotes!)
 export PYTHONPATH = src
 
-check_dirs := src examples tests
+check_dirs := src scripts tests
 
 style:
 	ruff check --select I --fix $(check_dirs) setup.py 

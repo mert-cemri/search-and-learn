@@ -15,12 +15,8 @@
 
 from dataclasses import dataclass
 from typing import Literal
-from huggingface_hub import (
-    create_branch,
-    get_full_repo_name,
-    list_repo_commits,
-    repo_exists,
-)
+
+from huggingface_hub import get_full_repo_name
 
 from sal.utils.hub import get_dataset_revisions
 
@@ -57,13 +53,11 @@ class Config:
     temperature: float = 0.8
     top_p: float = 1.0
     prm_batch_size: int = 4
-    search_batch_size: int = 1
+    search_batch_size: int = 25
     seed: int = 42
     max_tokens: int = 2048
     agg_strategy: str = "last"  # Options: "last", "min", "prod"
 
-    # Best of N search options
-    # TODO
     # DVTS / Beam Search options
     beam_width: int = 4  # m in the paper
     num_iterations: int = 40
@@ -94,14 +88,18 @@ class Config:
                 )
             revisions = get_dataset_revisions(self.hub_dataset_id)
 
-            if self.approach == "beam_search":
-                revision = f"{self.dataset_name.replace('/', '_')}--T-{self.temperature}--top_p-{self.top_p}--n-{self.n}--m-{self.beam_width}--iters-{self.num_iterations}--look-{self.lookahead}--seed-{self.seed}--agg_strategy-last"
+            if self.approach == "beam_search" or self.approach == "dvts":
+                self.revision = f"{self.dataset_name.replace('/', '_')}--T-{self.temperature}--top_p-{self.top_p}--n-{self.n}--m-{self.beam_width}--iters-{self.num_iterations}--look-{self.lookahead}--seed-{self.seed}--agg_strategy--{self.agg_strategy}"
+            elif self.approach == "best_of_n":
+                self.revision = f"{self.dataset_name.replace('/', '_')}--T-{self.temperature}--top_p-{self.top_p}--n-{self.n}--seed-{self.seed}--agg_strategy-{self.agg_strategy}"
             else:
                 raise ValueError(f"Unknown approach {self.approach}")
             if self.dataset_start is not None and self.dataset_end is not None:
-                revision = f"{revision}--chunk-{self.dataset_start}_{self.dataset_end}"
+                self.revision = (
+                    f"{self.revision}--chunk-{self.dataset_start}_{self.dataset_end}"
+                )
 
             # Early exit if the revision on the Hub already exists
-            if not self.overwrite_hub_revision and revision in revisions:
+            if not self.overwrite_hub_revision and self.revision in revisions:
                 # logger.info(f"Revision {revision} already exists on the Hub. Exiting.")
                 exit()

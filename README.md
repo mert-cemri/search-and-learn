@@ -10,3 +10,16 @@ conda create -n sal python=3.10 && conda activate sal
 ```shell
 pip install -e '.[dev]'
 ```
+
+
+## Replicating Scaling Test Time Compute results:
+The (recipes readme)[recipes/README.md] includes launch commands and config files in order to replicate our results.
+
+
+## Citation
+TODO
+```
+
+```
+
+
