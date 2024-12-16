@@ -12,7 +12,7 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml
 ```
 
 
-The configs shown here are for the `Llama-3.2-1B-Instruct model`, you can override the size of the llama model evaluated by including it in the command line arguments:
+The configs shown here are for the `Llama-3.2-1B-Instruct` model, you can override the size of the llama model evaluated by including it in the command line arguments:
 
 ```shell
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=Llama-3.2-3B-Instruct --hub_dataset_id=<YOUR_ORG>/Llama-3.2-3B-Instruct-bon-completions
