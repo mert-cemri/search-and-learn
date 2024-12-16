@@ -5,7 +5,7 @@
 # Installation
 
 ```shell
-conda create -n sal2 python=3.10 && conda activate sal2
+conda create -n sal python=3.10 && conda activate sal
 ```
 ```shell
 pip install -e '.[dev]'
