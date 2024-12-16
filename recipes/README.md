@@ -17,9 +17,9 @@ The configs shown here are for the `Llama-3.2-1B-Instruct model`, you can overri
 ```shell
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=Llama-3.2-3B-Instruct --hub_dataset_id=<YOUR_ORG>/Llama-3.2-3B-Instruct-bon-completions
 ```
-**IMPORTANT NOTE** 
 
-__best of n__ and __DVTS__ can be run at `n=256` and then subsampled for get complarable solutions for running at `n=4,16,64` etc. The beam search variant **must** be run at the correct `n` in order to make a valid comparison.
+> [!WARNING] 
+> __best of n__ and __DVTS__ can be run at `n=256` and then subsampled for get complarable solutions for running at `n=4,16,64` etc. The beam search variant **must** be run at the correct `n` in order to make a valid comparison.
 
 
 ## Reproducing results on the MATH-500 dataset:
