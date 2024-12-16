@@ -13,7 +13,7 @@ pip install -e '.[dev]'
 
 
 ## Replicating Scaling Test Time Compute results:
-The (recipes readme)[recipes/README.md] includes launch commands and config files in order to replicate our results.
+The recipes readme](recipes/README.md) includes launch commands and config files in order to replicate our results.
 
 
 ## Citation
