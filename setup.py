@@ -29,7 +29,7 @@ install_requires = [
     "pebble",  # for parallel processing
     "latex2sympy2==1.9.1",  # for MATH answer parsing
     "word2number",  # for MATH answer parsing
-    "transformers @ git+https://github.com/huggingface/transformers.git@8ba3e1505ec30b7086a7a523355a210395b6cf70",  # Important fix for prefill: https://github.com/huggingface/transformers/pull/34253
+    "transformers", 
     "fastapi",
 ]
 
