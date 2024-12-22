@@ -20,7 +20,7 @@ from vllm import LLM
 
 from sal.config import Config
 from sal.models.reward_models import load_prm
-from sal.search import beam_search, best_of_n, dvts
+from sal.search import beam_search, best_of_n, dvts, speculative_beam_search
 from sal.utils.data import get_dataset, save_dataset
 from sal.utils.parser import H4ArgumentParser
 from sal.utils.score import score
@@ -32,6 +32,7 @@ logger.setLevel(logging.INFO)
 
 
 APPROACHES = {
+    "speculative_beam_search": speculative_beam_search,
     "beam_search": beam_search,
     "dvts": dvts,
     "best_of_n": best_of_n,
@@ -41,6 +42,15 @@ APPROACHES = {
 def main():
     parser = H4ArgumentParser(Config)
     config = parser.parse()
+
+    if config.approach == "speculative_beam_search":
+        llm_target = LLM(
+        model=config.target_model_path,
+        gpu_memory_utilization=config.gpu_memory_utilization,
+        enable_prefix_caching=True,
+        seed=config.seed,
+        tensor_parallel_size=num_gpus,
+        )
 
     approach_fn = APPROACHES[config.approach]
 
@@ -54,16 +64,27 @@ def main():
     )
     prm = load_prm(config)
 
-    dataset = get_dataset(config)
-    dataset = dataset.map(
-        approach_fn,
-        batched=True,
-        batch_size=config.search_batch_size,
-        fn_kwargs={"config": config, "llm": llm, "prm": prm},
-        desc="Running search",
-        load_from_cache_file=False,
-    )
 
+
+    dataset = get_dataset(config)
+    if config.approach == "speculative_beam_search":
+        dataset = dataset.map(
+            approach_fn,
+            batched=True,
+            batch_size=config.search_batch_size,
+            fn_kwargs={"config": config, "llm": llm, "prm": prm, "llm_target": llm_target},
+            desc="Running search",
+            load_from_cache_file=False,
+        )
+    else:
+        dataset = dataset.map(
+            approach_fn,
+            batched=True,
+            batch_size=config.search_batch_size,
+            fn_kwargs={"config": config, "llm": llm, "prm": prm},
+            desc="Running search",
+            load_from_cache_file=False,
+        )
     dataset = score(dataset, config)
 
     save_dataset(dataset, config)

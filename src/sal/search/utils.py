@@ -20,7 +20,7 @@ import numpy as np
 from vllm import LLM, SamplingParams
 
 logger = logging.getLogger()
-
+import torch
 
 def build_conv(
     prompt: str, response: str | None, system_prompt: str
@@ -88,7 +88,7 @@ def generate_k_steps(
 ) -> list[Beam]:
     if llm_target is None:
         llm_target = llm
-        
+
     gen_results = []
     for i, text in enumerate(templated_convs):
         for j in range(beam_width):
@@ -103,6 +103,10 @@ def generate_k_steps(
             gen_results.append(gen_result)
 
     gen_sampling_params = copy.deepcopy(sampling_params)
+    verification_sampling_params = copy.deepcopy(sampling_params)
+    verification_sampling_params.n=1 #dont generate anything when verifying
+    verification_sampling_params.max_tokens=0  #dont generate anything when verifying
+    verification_output.prompt_logprobs = 1
 
     #what is the purpose of lookahead_steps?
     for i in range(lookahead_steps + 1):
@@ -126,9 +130,14 @@ def generate_k_steps(
         # print(len(llm_outputs[0].outputs))
         # print('-------------\n')
         # assert False
+
+        beam_index = 0
         for gen_result, output in zip(current_gen, llm_outputs):
-            gen_text = output.outputs[0].text
-            gen_result.cum_prob = output.outputs[0].cumulative_logprob
+            gen_text = output.outputs[beam_index].text #why zero here?
+            # gen_result.cum_prob = output.outputs[0].cumulative_logprob
+            verification_output = llm_target.generate([output.prompt+gen_text], verification_sampling_params, use_tqdm=False)
+            logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
+            gen_result.cum_prob = logprobs
             if i == 0:
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
@@ -139,6 +148,8 @@ def generate_k_steps(
             gen_result.stop_reason = output.outputs[0].stop_reason
             if gen_result.stop_reason is None:
                 gen_result.stop_reason = "EOS"
+
+            beam_index += 1
 
     outputs: list[Beam] = []
 

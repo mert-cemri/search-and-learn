@@ -28,8 +28,13 @@ from .utils import Beam, build_conv, generate_k_steps, last
 logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
 
+import torch
 
-def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[Beam]:
+def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_target = None) -> list[Beam]:
+
+    if llm_target is None:
+        llm_target = llm
+
     sampling_params = SamplingParams(
         temperature=config.temperature,
         max_tokens=config.max_tokens,
@@ -115,18 +120,18 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
         gen_results = generate_k_steps(
-            templated_convs, lookahead, llm, sampling_params, beam_width=config.n
+            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target
         ) #1 thing in it
 
-        prompts, completions = [], []
+        # prompts, completions = [], []
         for beam, gen_result in zip(active_beams, gen_results, strict=True):
             beam.next_texts = gen_result.next_texts #new candidate beams, n amount
             beam.stop_reasons = gen_result.stop_reasons
             beam.lookahead_texts = gen_result.lookahead_texts
             beam.completion_tokens += gen_result.completion_tokens
-            beam.cum_prob = gen_result.cum_prob #list of probs of branches (beams)
-            beam.current_text += beam.next_texts[0]
-            beam.history.append(beam.next_texts[0])
+            beam.cum_prob = gen_result.cum_prob #list of probs of branches (beams), n amount
+            # beam.current_text += beam.next_texts[0] #CHANGE
+            # beam.history.append(beam.next_texts[0]) #CHANGE
 
             if (
                 beam.stop_reasons[0] == "EOS"
@@ -135,27 +140,37 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
             ):
                 beam.completed = True
                 completed_beams.append(beam)
-            prompts.append(beam.prompt)
-            completions.append([beam.current_text])
 
-        scores = prm.score(prompts, completions)
+            tilted_scores = torch.zeros(config.n,device=prm.device)
+            for branch_index in range(len(beam.next_texts)):
+                next_text = beam.next_texts[branch_index]
+                cum_prob = beam.cum_prob[branch_index]
+                candidate = beam.current_text + next_text
+                score = prm._score_one_example(beam.prompt, candidate)
+                tilted_score = cum_prob + score
+                tilted_scores[branch_index] = tilted_score
 
-        agg_scores = [
-            [aggregate_scores(s, config.agg_strategy) for s in score]
-            for score in scores
-        ]
+            tilted_scores = tilted_scores/torch.sum(tilted_scores)
+            chosen_index = torch.multinomial(tilted_scores, num_samples=1)
+            beam.current_text += beam.next_texts[chosen_index]
+            beam.history.append(beam.next_texts[chosen_index])
+            # prompts.append(beam.prompt)
+            # completions.append([beam.current_text])
 
-        agg_tilted_scores = [
-            agg_score for agg_score in agg_scores
-        ]
+        # scores = prm.score(prompts, completions)
 
-        for beam, score in zip(active_beams, scores, strict=True):
-            beam.all_scores = score[0]
+        # agg_scores = [
+        #     [aggregate_scores(s, config.agg_strategy) for s in score]
+        #     for score in scores
+        # ]
+
+        # for beam, score in zip(active_beams, scores, strict=True):
+        #     beam.all_scores = score[0]
 
         # Now filter active_beams and agg_scores for beams that are completed
-        agg_scores = [
-            agg_scores[i] for i, b in enumerate(active_beams) if not b.completed
-        ]
+        # agg_scores = [
+        #     agg_scores[i] for i, b in enumerate(active_beams) if not b.completed
+        # ]
         active_beams = [b for b in active_beams if not b.completed]
 
         # Early stopping if all beams are completed
@@ -207,9 +222,9 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
     return completed_beams
 
 
-def beam_search(examples, config: Config, llm: LLM, prm: PRM):
+def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
     problems = examples["problem"]
-    beam_results = _beam_search(problems, config, llm, prm)
+    beam_results = _beam_search(problems, config, llm, prm, llm_target)
 
     # Group together alike beams and store in the dataset
     grouped_results = defaultdict(list)
