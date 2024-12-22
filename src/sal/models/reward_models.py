@@ -165,6 +165,40 @@ class RLHFFlow(PRM):
         else:
             return self._score_single(questions, outputs)
 
+    def _score_one_example(self, question: str, answer: str):
+        # reference code: https://github.com/RLHFlow/RLHF-Reward-Modeling/blob/main/math-rm/prm_evaluate.py
+        single_step_score = []
+        conversation = []
+        ans_list = answer.split("\n\n")
+        # print(ans_list)
+        # print(len(ans_list))
+        for k in range(len(ans_list)):
+            if k == 0:
+                # TODO: add the system prompt like we did for math shepard?
+                text = question + " " + ans_list[0]
+            else:
+                text = ans_list[k]
+            conversation.append({"content": text, "role": "user"})
+            conversation.append({"content": "+", "role": "assistant"})
+        input_ids = self.tokenizer.apply_chat_template(
+            conversation, return_tensors="pt"
+        ).to(self.model.device)
+        with torch.no_grad():
+            logits = self.model(input_ids).logits[
+                :, -3, self.candidate_tokens
+            ]  # simple version, the +/- is predicted by the '-3' position
+            step_scores = logits.softmax(dim=-1)[
+                :, 0
+            ]  # 0 means the prob of + (1 mean -)
+            # print(scores)
+            single_step_score.append(
+                step_scores[0]
+                .detach()
+                .to("cpu", dtype=torch.float32)
+                .item()
+            )
+        return single_step_score
+    
     def _score_single(self, questions: list[str], outputs: list[list[str]]):
         # reference code: https://github.com/RLHFlow/RLHF-Reward-Modeling/blob/main/math-rm/prm_evaluate.py
         all_scores = []

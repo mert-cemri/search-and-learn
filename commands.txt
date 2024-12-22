@@ -1,0 +1,3 @@
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=unsloth/Llama-3.2-3B-Instruct
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=unsloth/Llama-3.2-3B-Instruct
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=unsloth/Llama-3.2-1B-Instruct

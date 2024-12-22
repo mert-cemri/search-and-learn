@@ -65,6 +65,7 @@ class Beam:
     history: list[str]
     completed: bool = False
     completion_tokens: int = 0
+    cum_prob: int = 0
 
 
 @dataclass
@@ -75,7 +76,7 @@ class GenResult:
     first_step_stop_reason: str
     lookahead_text: str
     stop_reason: str | None
-
+    cum_prob: int = 0
 
 def generate_k_steps(
     templated_convs,
@@ -83,7 +84,11 @@ def generate_k_steps(
     llm: LLM,
     sampling_params: SamplingParams,
     beam_width: int,
+    llm_target = None,
 ) -> list[Beam]:
+    if llm_target is None:
+        llm_target = llm
+        
     gen_results = []
     for i, text in enumerate(templated_convs):
         for j in range(beam_width):
@@ -99,6 +104,7 @@ def generate_k_steps(
 
     gen_sampling_params = copy.deepcopy(sampling_params)
 
+    #what is the purpose of lookahead_steps?
     for i in range(lookahead_steps + 1):
         if i == 1:
             gen_sampling_params.temperature = 0.0  # greedy for the rest of the steps
@@ -112,9 +118,17 @@ def generate_k_steps(
             gen_result.initial_prompt + gen_result.lookahead_text
             for gen_result in current_gen
         ]
+        # print(gen_prompts[0])
         llm_outputs = llm.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
+        # print('-------------\n')
+        # print(llm_outputs[0].outputs[0])
+        # print('-------------\n')
+        # print(len(llm_outputs[0].outputs))
+        # print('-------------\n')
+        # assert False
         for gen_result, output in zip(current_gen, llm_outputs):
             gen_text = output.outputs[0].text
+            gen_result.cum_prob = output.outputs[0].cumulative_logprob
             if i == 0:
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
@@ -133,11 +147,13 @@ def generate_k_steps(
         next_texts = []
         stop_reasons = []
         lookahead_texts = []
+        cum_probs = []
         for j in range(beam_width):
             gen_result = gen_results[counter]
             next_texts.append(gen_result.first_step_text)
             lookahead_texts.append(gen_result.lookahead_text)
             stop_reasons.append(gen_result.first_step_stop_reason)
+            cum_probs.append(gen_result.cum_prob)
             counter += 1
 
         beam_result = Beam(
@@ -152,7 +168,13 @@ def generate_k_steps(
             previous_text=None,
             pruned=False,
             history=[],
+            cum_prob = cum_probs
         )
         outputs.append(beam_result)
-
+    print('\n\n---------------\n\n')
+    print(print(beam_result))
+    print('\n\n---------------\n\n')
+    print(len(outputs))
+    
+    assert False
     return outputs
