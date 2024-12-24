@@ -25,8 +25,9 @@ from sal.utils.hub import get_dataset_revisions
 class Config:
     approach: Literal["best_of_n", "beam_search", "dvts"] = "best_of_n"
     model_path: str = "meta-llama/Llama-3.2-1B-Instruct"
+    target_model_path: str = "meta-llama/Llama-3.2-1B-Instruct"
     gpu_memory_utilization: float = (
-        0.5  # vllm is allocated 0.5 of GPU memory, the PRM uses the rest
+        0.2  # vllm is allocated 0.5 of GPU memory, the PRM uses the rest
     )
     prm_path: str = "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data"
     # Output Related Options
@@ -57,6 +58,8 @@ class Config:
     seed: int = 42
     max_tokens: int = 2048
     agg_strategy: str = "last"  # Options: "last", "min", "prod"
+
+    max_model_len: int = 131072
 
     # DVTS / Beam Search options
     beam_width: int = 4  # m in the paper

@@ -43,16 +43,10 @@ def main():
     parser = H4ArgumentParser(Config)
     config = parser.parse()
 
-    if config.approach == "speculative_beam_search":
-        llm_target = LLM(
-        model=config.target_model_path,
-        gpu_memory_utilization=config.gpu_memory_utilization,
-        enable_prefix_caching=True,
-        seed=config.seed,
-        tensor_parallel_size=num_gpus,
-        )
-
     approach_fn = APPROACHES[config.approach]
+
+    # import os
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     num_gpus = torch.cuda.device_count()
     llm = LLM(
@@ -61,13 +55,20 @@ def main():
         enable_prefix_caching=True,
         seed=config.seed,
         tensor_parallel_size=num_gpus,
+        max_model_len=config.max_model_len,
     )
-    prm = load_prm(config)
-
-
+    prm = load_prm(config)        
 
     dataset = get_dataset(config)
     if config.approach == "speculative_beam_search":
+        llm_target = LLM(
+        model=config.target_model_path,
+        gpu_memory_utilization=config.gpu_memory_utilization,
+        enable_prefix_caching=True,
+        seed=config.seed,
+        tensor_parallel_size=num_gpus,
+        max_model_len=config.max_model_len,
+        )
         dataset = dataset.map(
             approach_fn,
             batched=True,

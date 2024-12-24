@@ -103,10 +103,12 @@ def generate_k_steps(
             gen_results.append(gen_result)
 
     gen_sampling_params = copy.deepcopy(sampling_params)
+    gen_sampling_params.prompt_logprobs = 1
+    gen_sampling_params.n = 1
     verification_sampling_params = copy.deepcopy(sampling_params)
     verification_sampling_params.n=1 #dont generate anything when verifying
-    verification_sampling_params.max_tokens=0  #dont generate anything when verifying
-    verification_output.prompt_logprobs = 1
+    # verification_sampling_params.max_tokens=1  #dont generate anything when verifying
+    verification_sampling_params.prompt_logprobs = 1
 
     #what is the purpose of lookahead_steps?
     for i in range(lookahead_steps + 1):
@@ -121,23 +123,51 @@ def generate_k_steps(
         gen_prompts = [
             gen_result.initial_prompt + gen_result.lookahead_text
             for gen_result in current_gen
-        ]
+        ] #4 prompts, essentially
         # print(gen_prompts[0])
         llm_outputs = llm.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
+        # assert False
         # print('-------------\n')
         # print(llm_outputs[0].outputs[0])
         # print('-------------\n')
         # print(len(llm_outputs[0].outputs))
         # print('-------------\n')
         # assert False
+        tokenizer = llm.get_tokenizer()
+        token_ids = tokenizer.encode(gen_result.initial_prompt, add_special_tokens=True) 
 
         beam_index = 0
+        # print(len(current_gen),len(llm_outputs)) # this is 4,4
+        # assert False
         for gen_result, output in zip(current_gen, llm_outputs):
-            gen_text = output.outputs[beam_index].text #why zero here?
+
+            print("DOING BEAM:",beam_index)
+            
+            gen_text = output.outputs[0].text #why zero here? should it be beam_index?
             # gen_result.cum_prob = output.outputs[0].cumulative_logprob
-            verification_output = llm_target.generate([output.prompt+gen_text], verification_sampling_params, use_tqdm=False)
-            logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
-            gen_result.cum_prob = logprobs
+            prompt_to_be_done = gen_result.initial_prompt
+            # print("\n\n----\n\n ",prompt_to_be_done,"\n\n--------\n\n")
+            # print(len(gen_prompts))
+            # print("--------\n\n")
+            # assert False
+            verification_output = llm_target.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
+            # assert False
+            # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
+            keys = token_ids[-gen_sampling_params.max_tokens:]
+            counter_start = -len(keys)
+            # log_probs = [verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob if verification_output[0].prompt_logprobs[counter_start + i].get(key) else 0.0 for i, key in enumerate(keys)]
+            log_probs = []
+            for i,key in enumerate(keys):
+                if verification_output[0].prompt_logprobs[counter_start + i]:
+                    lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
+                else:
+                    lp = 0
+                log_probs.append(lp)
+            # print("Log probs:")
+            # print(log_probs)
+            # assert False
+            total_log_probs = torch.sum(torch.tensor(log_probs))
+            gen_result.cum_prob = total_log_probs
             if i == 0:
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
@@ -187,5 +217,5 @@ def generate_k_steps(
     print('\n\n---------------\n\n')
     print(len(outputs))
     
-    assert False
+    # assert False
     return outputs
