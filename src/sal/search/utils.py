@@ -59,7 +59,7 @@ class Beam:
     lookahead_texts: list[str] | None
     stop_reasons: list[str | None] | None
     best_scores: list[float]  # the PRM scores
-    all_scores: list[list[float]]  # all PRM scores
+    all_scores: list[list[float]] | None # all PRM scores
     previous_text: str | None
     pruned: False
     history: list[str]
@@ -85,6 +85,7 @@ def generate_k_steps(
     sampling_params: SamplingParams,
     beam_width: int,
     llm_target = None,
+    speculative = False,
 ) -> list[Beam]:
     if llm_target is None:
         llm_target = llm
@@ -144,29 +145,30 @@ def generate_k_steps(
 
             gen_text = output.outputs[0].text #why zero here? should it be beam_index?
             # gen_result.cum_prob = output.outputs[0].cumulative_logprob
-            prompt_to_be_done = gen_result.initial_prompt
-            # print("\n\n----\n\n ",prompt_to_be_done,"\n\n--------\n\n")
-            # print(len(gen_prompts))
-            # print("--------\n\n")
-            # assert False
-            verification_output = llm_target.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
-            # assert False
-            # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
-            keys = token_ids[-gen_sampling_params.max_tokens:]
-            counter_start = -len(keys)
-            # log_probs = [verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob if verification_output[0].prompt_logprobs[counter_start + i].get(key) else 0.0 for i, key in enumerate(keys)]
-            log_probs = []
-            for i,key in enumerate(keys):
-                if verification_output[0].prompt_logprobs[counter_start + i]:
-                    lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
-                else:
-                    lp = 0
-                log_probs.append(lp)
-            # print("Log probs:")
-            # print(log_probs)
-            # assert False
-            total_log_probs = torch.sum(torch.tensor(log_probs))
-            gen_result.cum_prob = total_log_probs
+            if speculative:
+                prompt_to_be_done = gen_result.initial_prompt
+                # print("\n\n----\n\n ",prompt_to_be_done,"\n\n--------\n\n")
+                # print(len(gen_prompts))
+                # print("--------\n\n")
+                # assert False
+                verification_output = llm_target.generate(gen_prompts, verification_sampling_params, use_tqdm=False)
+                # assert False
+                # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
+                keys = token_ids[-gen_sampling_params.max_tokens:]
+                counter_start = -len(keys)
+                # log_probs = [verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob if verification_output[0].prompt_logprobs[counter_start + i].get(key) else 0.0 for i, key in enumerate(keys)]
+                log_probs = []
+                for i,key in enumerate(keys):
+                    if verification_output[0].prompt_logprobs[counter_start + i]:
+                        lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
+                    else:
+                        lp = 0
+                    log_probs.append(lp)
+                # print("Log probs:")
+                # print(log_probs)
+                # assert False
+                total_log_probs = torch.sum(torch.tensor(log_probs))
+                gen_result.cum_prob = total_log_probs
             if i == 0:
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
