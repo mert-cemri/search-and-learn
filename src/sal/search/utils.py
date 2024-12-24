@@ -103,7 +103,6 @@ def generate_k_steps(
             gen_results.append(gen_result)
 
     gen_sampling_params = copy.deepcopy(sampling_params)
-    gen_sampling_params.prompt_logprobs = 1
     gen_sampling_params.n = 1
     verification_sampling_params = copy.deepcopy(sampling_params)
     verification_sampling_params.n=1 #dont generate anything when verifying
@@ -142,7 +141,7 @@ def generate_k_steps(
         for gen_result, output in zip(current_gen, llm_outputs):
 
             print("DOING BEAM:",beam_index)
-            
+
             gen_text = output.outputs[0].text #why zero here? should it be beam_index?
             # gen_result.cum_prob = output.outputs[0].cumulative_logprob
             prompt_to_be_done = gen_result.initial_prompt
