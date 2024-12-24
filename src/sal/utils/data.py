@@ -70,7 +70,7 @@ def save_dataset(dataset, config):
         logger.info(f"Pushed dataset to {url}")
     else:
         if config.output_dir is None:
-            config.output_dir = f"data/{config.model_path}"
+            config.output_dir = f"data/{config.approach}"
         Path(config.output_dir).mkdir(parents=True, exist_ok=True)
-        dataset.to_json(f"{config.output_dir}/bon_completions.jsonl", lines=True)
-        logger.info(f"Saved completions to {config.output_dir}/bon_completions.jsonl")
+        dataset.to_json(f"{config.output_dir}/{config.model_path}-{config.target_model_path}_n{config.n}.jsonl", lines=True)
+        logger.info(f"Saved completions to {config.output_dir}/{config.approach}_n{config.n}.jsonl")

@@ -120,7 +120,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
         gen_results = generate_k_steps(
-            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target
+            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True
         ) #1 thing in it
 
         # prompts, completions = [], []
@@ -141,18 +141,23 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 beam.completed = True
                 completed_beams.append(beam)
 
-            tilted_scores = torch.zeros(config.n,device=prm.device)
-            for branch_index in range(len(beam.next_texts)):
+            tilted_scores = torch.zeros(config.n)
+            for branch_index in range(len(beam.next_texts)): # there should be beam_width amount of these
                 next_text = beam.next_texts[branch_index]
                 cum_prob = beam.cum_prob[branch_index]
                 candidate = beam.current_text + next_text
                 score = prm._score_one_example(beam.prompt, candidate)
-                tilted_score = cum_prob + score
+
+                tilted_score = cum_prob + config.rm_regularizer * score[0]
                 tilted_scores[branch_index] = tilted_score
 
             tilted_scores = tilted_scores/torch.sum(tilted_scores)
             chosen_index = torch.multinomial(tilted_scores, num_samples=1)
             beam.current_text += beam.next_texts[chosen_index]
+            if beam.all_scores:
+                beam.all_scores.append([tilted_scores[chosen_index]])
+            else:
+                beam.all_scores = [[tilted_scores[chosen_index]]]
             beam.history.append(beam.next_texts[chosen_index])
             # prompts.append(beam.prompt)
             # completions.append([beam.current_text])
@@ -198,6 +203,11 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             if idx not in top_indices:
                 beam.pruned = True
 
+
+        print("+++++++++++++++++++++++\n\n")
+        print(f"NUMBER OF ACTIVE BEAMS: {len(active_beams)}")
+        print("+++++++++++++++++++++++\n\n")
+
     # Filter completed beams for those with top config.n scores
     if config.sort_completed:
         completed_beams = sorted(
@@ -208,16 +218,16 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
     else:
         completed_beams = completed_beams[: config.n]
 
-    if len(completed_beams) != config.n:
-        # If we don't have enough completed_beams, duplicate until we reach config.n
-        repeats = (config.n // len(completed_beams)) + 1
-        logger.debug(
-            f"Extending completed_beams with {repeats} repetitions to reach size {config.n}"
-        )
-        extended_completed_beams = [
-            copy.deepcopy(b) for b in (completed_beams * repeats)[: config.n]
-        ]
-        completed_beams = extended_completed_beams
+    # if len(completed_beams) != config.n:
+    #     # If we don't have enough completed_beams, duplicate until we reach config.n
+    #     repeats = (config.n // len(completed_beams)) + 1
+    #     logger.debug(
+    #         f"Extending completed_beams with {repeats} repetitions to reach size {config.n}"
+    #     )
+    #     extended_completed_beams = [
+    #         copy.deepcopy(b) for b in (completed_beams * repeats)[: config.n]
+    #     ]
+    #     completed_beams = extended_completed_beams
 
     return completed_beams
 
@@ -235,13 +245,17 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
 
     for p in problems:
         beams = grouped_results[p]
+        
+        if len(beams)!=1: #should be one
+            print(beams)
+            assert False
         completions = [b.current_text for b in beams]
-        agg_scores = [
-            aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
-        ]
-        pred = completions[np.argmax(agg_scores)]
+        # agg_scores = [
+        #     aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
+        # ]
+        pred = completions[0]
         results["completions"].append(completions)
-        results["scores"].append([b.all_scores for b in beams])
+        results["scores"].append([b.cum_prob for b in beams])
         results["pred"].append(pred)
         results["completion_tokens"].append([b.completion_tokens for b in beams])
 

@@ -64,10 +64,10 @@ def main():
         llm_target = LLM(
         model=config.target_model_path,
         gpu_memory_utilization=config.gpu_memory_utilization,
-        enable_prefix_caching=True,
+        enable_prefix_caching=False,
         seed=config.seed,
         tensor_parallel_size=num_gpus,
-        max_model_len=config.max_model_len,
+        max_model_len=config.max_target_model_len,
         )
         dataset = dataset.map(
             approach_fn,

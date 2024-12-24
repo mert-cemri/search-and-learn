@@ -7,3 +7,5 @@ search_batch_size: 1
 dataset_start: 0
 dataset_end: 10
 seed: 42
+gpu_memory_utilization: 0.4
+max_model_len: 50400

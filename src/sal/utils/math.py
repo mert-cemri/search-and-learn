@@ -176,6 +176,8 @@ def find_answer_with_largest_sum(answers: List[str], scores: List[float]) -> str
         canonical_form = memoized_canonical_form(answer)
 
         # Aggregate scores and track the original answer
+        print(canonical_groups)
+        print(score)
         canonical_groups[canonical_form] += score
         if canonical_form not in canonical_to_original:
             canonical_to_original[canonical_form] = answer
