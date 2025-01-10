@@ -107,7 +107,7 @@ def generate_k_steps(
     gen_sampling_params.n = 1
     verification_sampling_params = copy.deepcopy(sampling_params)
     verification_sampling_params.n=1 #dont generate anything when verifying
-    # verification_sampling_params.max_tokens=1  #dont generate anything when verifying
+    verification_sampling_params.max_tokens=1  #dont generate anything when verifying
     verification_sampling_params.prompt_logprobs = 1
 
     #what is the purpose of lookahead_steps?
@@ -117,7 +117,7 @@ def generate_k_steps(
         # get all generations that did not finish with eos
         current_gen = [
             gen_results[i]
-            for i in range(len(gen_results))
+            for i in range(len(gen_results)) # beam width 
             if gen_results[i].stop_reason != "EOS"
         ]
         gen_prompts = [
@@ -139,7 +139,7 @@ def generate_k_steps(
         beam_index = 0
         # print(len(current_gen),len(llm_outputs)) # this is 4,4
         # assert False
-        for gen_result, output in zip(current_gen, llm_outputs):
+        for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
 
             print("DOING BEAM:",beam_index)
 
@@ -151,7 +151,8 @@ def generate_k_steps(
                 # print(len(gen_prompts))
                 # print("--------\n\n")
                 # assert False
-                verification_output = llm_target.generate(gen_prompts, verification_sampling_params, use_tqdm=False)
+                new_answer = prompt_to_be_done + gen_text
+                verification_output = llm_target.generate(new_answer, verification_sampling_params, use_tqdm=False)
                 # assert False
                 # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
                 keys = token_ids[-gen_sampling_params.max_tokens:]
@@ -185,7 +186,7 @@ def generate_k_steps(
     outputs: list[Beam] = []
 
     counter = 0
-    for i, text in enumerate(templated_convs):
+    for i, text in enumerate(templated_convs): #happens once (or N/M times)
         next_texts = []
         stop_reasons = []
         lookahead_texts = []

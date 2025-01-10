@@ -121,10 +121,10 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
         gen_results = generate_k_steps(
             templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True
-        ) #1 thing in it
+        ) #1 (N/M) thing in it, with M different next_texts in each of them
 
         # prompts, completions = [], []
-        for beam, gen_result in zip(active_beams, gen_results, strict=True):
+        for beam, gen_result in zip(active_beams, gen_results, strict=True): # runs for N/M (1) times
             beam.next_texts = gen_result.next_texts #new candidate beams, n amount
             beam.stop_reasons = gen_result.stop_reasons
             beam.lookahead_texts = gen_result.lookahead_texts
@@ -141,14 +141,14 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 beam.completed = True
                 completed_beams.append(beam)
 
-            tilted_scores = torch.zeros(config.n)
-            for branch_index in range(len(beam.next_texts)): # there should be beam_width amount of these
+            tilted_scores = torch.zeros(config.n) # beam_width (M) amount of these
+            for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
                 next_text = beam.next_texts[branch_index]
                 cum_prob = beam.cum_prob[branch_index]
                 candidate = beam.current_text + next_text
                 score = prm._score_one_example(beam.prompt, candidate)
 
-                tilted_score = cum_prob + config.rm_regularizer * score[0]
+                tilted_score = torch.exp(cum_prob + config.rm_regularizer * score[0]) #p(x)*exp(1/beta r(x))
                 tilted_scores[branch_index] = tilted_score
 
             tilted_scores = tilted_scores/torch.sum(tilted_scores)
