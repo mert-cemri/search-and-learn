@@ -154,10 +154,13 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 # print(f"Tilted Score: {tilted_score}")
                 tilted_scores[branch_index] = tilted_score
 
-            tilted_scores = torch.exp(tilted_scores)  #p(x)*exp(1/beta r(x))
-            tilted_scores = tilted_scores/torch.sum(tilted_scores)
-            # print(f"Tilted Scores: {tilted_scores}")
-            chosen_index = torch.multinomial(tilted_scores, num_samples=1)
+            probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
+            try:
+                chosen_index = torch.multinomial(probs, num_samples=1)
+            except:
+                print(f"Tilted Scores: {tilted_scores}")
+                print(f"Probs: {probs}")
+                chosen_index = 0
             # print(f"Chosen Index: {chosen_index}")
             beam.current_text += beam.next_texts[chosen_index]
             # print(f"Chosen Text: {beam.next_texts[chosen_index]}")
@@ -212,9 +215,9 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         #         beam.pruned = True
 
 
-        print("+++++++++++++++++++++++\n\n")
-        print(f"NUMBER OF ACTIVE BEAMS: {len(active_beams)}")
-        print("+++++++++++++++++++++++\n\n")
+        # print("+++++++++++++++++++++++\n\n")
+        # print(f"NUMBER OF ACTIVE BEAMS: {len(active_beams)}")
+        # print("+++++++++++++++++++++++\n\n")
 
     # Filter completed beams for those with top config.n scores
     if config.sort_completed:
