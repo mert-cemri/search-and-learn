@@ -60,6 +60,14 @@ def main():
     prm = load_prm(config)        
 
     dataset = get_dataset(config)
+
+    import numpy as np
+    # def process_example(example):
+    # # Ensure all float values are of the same dtype
+    #     example["column_name"] = np.array(example["column_name"], dtype=np.float32)
+    #     return example
+    # dataset = dataset.map(process_example)
+
     if config.approach == "speculative_beam_search":
         llm_target = LLM(
         model=config.target_model_path,

@@ -71,11 +71,12 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
 
     for i in tqdm(range(config.num_iterations), desc="Beam search iterations"):
+        # print(i)
+        # assert False
         if i == 0:
             active_beams = [b for b in beams if not b.pruned]
         else:
             active_beams = [b for b in active_beams if not b.pruned]
-            print('\n\n-----\n\n')
 
         # # Duplicate active beams to ensure that we have config.n beams per iteration
         # if len(active_beams) != config.n:
@@ -144,16 +145,23 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             tilted_scores = torch.zeros(config.n) # beam_width (M) amount of these
             for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
                 next_text = beam.next_texts[branch_index]
+                # print(f"Branch Index: {branch_index}, Next Text: {next_text}")
                 cum_prob = beam.cum_prob[branch_index]
                 candidate = beam.current_text + next_text
                 score = prm._score_one_example(beam.prompt, candidate)
-
-                tilted_score = torch.exp(cum_prob + config.rm_regularizer * score[0]) #p(x)*exp(1/beta r(x))
+                # print(f"Cum Prob: {cum_prob}")
+                tilted_score = cum_prob + config.rm_regularizer * score[0]
+                # print(f"Tilted Score: {tilted_score}")
                 tilted_scores[branch_index] = tilted_score
 
+            tilted_scores = torch.exp(tilted_scores)  #p(x)*exp(1/beta r(x))
             tilted_scores = tilted_scores/torch.sum(tilted_scores)
+            # print(f"Tilted Scores: {tilted_scores}")
             chosen_index = torch.multinomial(tilted_scores, num_samples=1)
+            # print(f"Chosen Index: {chosen_index}")
             beam.current_text += beam.next_texts[chosen_index]
+            # print(f"Chosen Text: {beam.next_texts[chosen_index]}")
+            # print(f"Current Text: {beam.current_text}")
             if beam.all_scores:
                 beam.all_scores.append([tilted_scores[chosen_index]])
             else:
@@ -182,26 +190,26 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         if len(active_beams) == 0:
             break
 
-        # Filter duplicate active beams
-        if config.filter_duplicates:
-            # Create a dictionary to filter duplicates and retain order
-            unique_beam_dict = {}
-            for i, b in enumerate(active_beams):
-                if b.current_text not in unique_beam_dict:
-                    unique_beam_dict[b.current_text] = (
-                        i  # Map the unique text to its index
-                    )
-            active_beams = [active_beams[i] for i in unique_beam_dict.values()]
-            agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
+        # # Filter duplicate active beams
+        # if config.filter_duplicates:
+        #     # Create a dictionary to filter duplicates and retain order
+        #     unique_beam_dict = {}
+        #     for i, b in enumerate(active_beams):
+        #         if b.current_text not in unique_beam_dict:
+        #             unique_beam_dict[b.current_text] = (
+        #                 i  # Map the unique text to its index
+        #             )
+        #     active_beams = [active_beams[i] for i in unique_beam_dict.values()]
+        #     agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
 
-        # Get indices for top (config.n / config.beam_width) completions
-        top_indices = np.argsort(np.array(agg_scores).flatten())[
-            -(config.n // config.n) :
-        ]
+        # # Get indices for top (config.n / config.beam_width) completions
+        # top_indices = np.argsort(np.array(agg_scores).flatten())[
+        #     -(config.n // config.n) :
+        # ]
 
-        for idx, beam in enumerate(active_beams):
-            if idx not in top_indices:
-                beam.pruned = True
+        # for idx, beam in enumerate(active_beams):
+        #     if idx not in top_indices:
+        #         beam.pruned = True
 
 
         print("+++++++++++++++++++++++\n\n")
@@ -246,14 +254,17 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
     for p in problems:
         beams = grouped_results[p]
         
-        if len(beams)!=1: #should be one
-            print(beams)
-            assert False
+        assert len(beams)==1
+
         completions = [b.current_text for b in beams]
         # agg_scores = [
         #     aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
         # ]
         pred = completions[0]
+        # print(f"Prompt: {p}")
+        # print(f"Completions: {completions}")
+        # print(f"Prediction: {pred}")
+        # assert False
         results["completions"].append(completions)
         results["scores"].append([b.cum_prob for b in beams])
         results["pred"].append(pred)

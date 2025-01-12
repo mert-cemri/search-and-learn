@@ -110,6 +110,7 @@ def generate_k_steps(
     verification_sampling_params.max_tokens=1  #dont generate anything when verifying
     verification_sampling_params.prompt_logprobs = 1
 
+    # print(f"Gen Results Before: {gen_results}")
     #what is the purpose of lookahead_steps?
     for i in range(lookahead_steps + 1):
         if i == 1:
@@ -141,9 +142,10 @@ def generate_k_steps(
         # assert False
         for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
 
-            print("DOING BEAM:",beam_index)
-
+            # print("DOING BEAM:",beam_index)
+            # print(f"Output Length: {len(output.outputs)}")
             gen_text = output.outputs[0].text #why zero here? should it be beam_index?
+            # print(f"GEN TEXT: {gen_text}")
             # gen_result.cum_prob = output.outputs[0].cumulative_logprob
             if speculative:
                 prompt_to_be_done = gen_result.initial_prompt
@@ -161,7 +163,11 @@ def generate_k_steps(
                 log_probs = []
                 for i,key in enumerate(keys):
                     if verification_output[0].prompt_logprobs[counter_start + i]:
-                        lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
+                        # print(verification_output[0].prompt_logprobs[counter_start + i].get(key))
+                        if verification_output[0].prompt_logprobs[counter_start + i].get(key):
+                            lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
+                        else:
+                            lp = 0
                     else:
                         lp = 0
                     log_probs.append(lp)
@@ -170,11 +176,11 @@ def generate_k_steps(
                 # assert False
                 total_log_probs = torch.sum(torch.tensor(log_probs))
                 gen_result.cum_prob = total_log_probs
-            if i == 0:
-                gen_result.first_step_text = gen_text
-                gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
-                    gen_result.first_step_stop_reason = "EOS"
+            # if i == 0:
+            gen_result.first_step_text = gen_text
+            gen_result.first_step_stop_reason = output.outputs[0].stop_reason
+            if gen_result.first_step_stop_reason is None:
+                gen_result.first_step_stop_reason = "EOS"
 
             gen_result.lookahead_text = gen_result.lookahead_text + gen_text
             gen_result.stop_reason = output.outputs[0].stop_reason
@@ -182,6 +188,7 @@ def generate_k_steps(
                 gen_result.stop_reason = "EOS"
 
             beam_index += 1
+    # print(f"Gen Results After: {gen_results}")
 
     outputs: list[Beam] = []
 
@@ -199,6 +206,10 @@ def generate_k_steps(
             cum_probs.append(gen_result.cum_prob)
             counter += 1
 
+        # print("Inside the beam search")
+        # print("NEXT TEXTS:",next_texts)
+
+
         beam_result = Beam(
             prompt=text,
             index=i,
@@ -214,10 +225,10 @@ def generate_k_steps(
             cum_prob = cum_probs
         )
         outputs.append(beam_result)
-    print('\n\n---------------\n\n')
-    print(print(beam_result))
-    print('\n\n---------------\n\n')
-    print(len(outputs))
+    # print('\n\n---------------\n\n')
+    # print(print(beam_result))
+    # print('\n\n---------------\n\n')
+    # print(len(outputs))
     
     # assert False
     return outputs

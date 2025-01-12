@@ -61,7 +61,7 @@ class Config:
 
     max_model_len: int = 131072
     max_target_model_len: int = 131072
-    rm_regularizer: int = 1
+    rm_regularizer: int = 0.1
 
     # DVTS / Beam Search options
     beam_width: int = 4  # m in the paper
