@@ -128,7 +128,7 @@ class MathShepherd(PRM):
             ), f"{len(output_score)} != {len(output)}"
 
         return output_scores
-
+# 8 parameter model
 
 class RLHFFlow(PRM):
     def load_model_and_tokenizer(

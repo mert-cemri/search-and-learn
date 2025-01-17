@@ -25,6 +25,8 @@ from sal.utils.data import get_dataset, save_dataset
 from sal.utils.parser import H4ArgumentParser
 from sal.utils.score import score
 
+import time
+
 logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,7 @@ def main():
     #     return example
     # dataset = dataset.map(process_example)
 
+    
     if config.approach == "speculative_beam_search":
         llm_target = LLM(
         model=config.target_model_path,
@@ -77,12 +80,16 @@ def main():
         tensor_parallel_size=num_gpus,
         max_model_len=config.max_target_model_len,
         )
+
+    start = time.time()
+
+    if config.approach == "speculative_beam_search":
         dataset = dataset.map(
             approach_fn,
             batched=True,
             batch_size=config.search_batch_size,
             fn_kwargs={"config": config, "llm": llm, "prm": prm, "llm_target": llm_target},
-            desc="Running search",
+            desc="Running (speculative) search",
             load_from_cache_file=False,
         )
     else:
@@ -94,11 +101,17 @@ def main():
             desc="Running search",
             load_from_cache_file=False,
         )
+
+    end = time.time()
+    runtime = end - start
+
+    print(f"Runtime: {runtime}")
+
     dataset = score(dataset, config)
 
     save_dataset(dataset, config)
     logger.info("Done 🔥!")
-
+    logger.info(f"Runtime: {runtime}")
 
 if __name__ == "__main__":
     main()

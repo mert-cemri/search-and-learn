@@ -108,7 +108,7 @@ def generate_k_steps(
     verification_sampling_params = copy.deepcopy(sampling_params)
     verification_sampling_params.n=1 #dont generate anything when verifying
     verification_sampling_params.max_tokens=1  #dont generate anything when verifying
-    verification_sampling_params.prompt_logprobs = 1
+    verification_sampling_params.prompt_logprobs = 20
 
     # print(f"Gen Results Before: {gen_results}")
     #what is the purpose of lookahead_steps?
@@ -134,8 +134,6 @@ def generate_k_steps(
         # print(len(llm_outputs[0].outputs))
         # print('-------------\n')
         # assert False
-        tokenizer = llm.get_tokenizer()
-        token_ids = tokenizer.encode(gen_result.initial_prompt, add_special_tokens=True) 
 
         beam_index = 0
         # print(len(current_gen),len(llm_outputs)) # this is 4,4
@@ -154,28 +152,41 @@ def generate_k_steps(
                 # print("--------\n\n")
                 # assert False
                 new_answer = prompt_to_be_done + gen_text
+                tokenizer = llm_target.get_tokenizer()
+                token_ids = tokenizer.encode(gen_text, add_special_tokens=True) 
+
                 verification_output = llm_target.generate(new_answer, verification_sampling_params, use_tqdm=False)
                 # assert False
                 # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
-                keys = token_ids[-gen_sampling_params.max_tokens:]
+                
+                # keys = token_ids[-gen_sampling_params.max_tokens:]
+                keys = token_ids
+                # should be the length of the responses generated above in gen_text
+
                 counter_start = -len(keys)
                 # log_probs = [verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob if verification_output[0].prompt_logprobs[counter_start + i].get(key) else 0.0 for i, key in enumerate(keys)]
                 log_probs = []
+                # print(verification_output[0].prompt_logprobs[counter_start:])
+                # assert False
                 for i,key in enumerate(keys):
-                    if verification_output[0].prompt_logprobs[counter_start + i]:
-                        # print(verification_output[0].prompt_logprobs[counter_start + i].get(key))
-                        if verification_output[0].prompt_logprobs[counter_start + i].get(key):
-                            lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
-                        else:
-                            lp = 0
+                    # if verification_output[0].prompt_logprobs[counter_start + i]:
+                    # print(verification_output[0].prompt_logprobs[counter_start + i].get(key))
+                    if verification_output[0].prompt_logprobs[counter_start + i].get(key):
+                        lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
                     else:
+                        # print(tokenizer.decode(key))
+                        # print(key)
+                        # print(verification_output[0].prompt_logprobs[counter_start + i])
                         lp = 0
+                    # else:
+                    #     lp = -100000
                     log_probs.append(lp)
                 # print("Log probs:")
                 # print(log_probs)
                 # assert False
                 total_log_probs = torch.sum(torch.tensor(log_probs))
                 gen_result.cum_prob = total_log_probs
+
             # if i == 0:
             gen_result.first_step_text = gen_text
             gen_result.first_step_stop_reason = output.outputs[0].stop_reason

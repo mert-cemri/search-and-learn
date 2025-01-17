@@ -20,3 +20,31 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.ya
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=instruction-pretrain/InstructLM-500M --target_model_path=instruction-pretrain/InstructLM-500M
 
 test input
+
+
+### Sanity best_of_n:
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ \
+--target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --rm_regularizer=123
+
+## Sanity bos, new scoring
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ \
+--target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --rm_regularizer=125
+
+## real test:
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=0.1
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=0.5
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=0.05
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=1
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=0.1 --dataset_end=20
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
+--rm_regularizer=0.5 --dataset_end=20

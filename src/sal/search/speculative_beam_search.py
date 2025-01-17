@@ -143,26 +143,64 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 completed_beams.append(beam)
 
             tilted_scores = torch.zeros(config.n) # beam_width (M) amount of these
+            prompts, completions = [], []
+            cum_probs = []
             for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
                 next_text = beam.next_texts[branch_index]
                 # print(f"Branch Index: {branch_index}, Next Text: {next_text}")
                 cum_prob = beam.cum_prob[branch_index]
                 candidate = beam.current_text + next_text
-                score = prm._score_one_example(beam.prompt, candidate)
-                # print(f"Cum Prob: {cum_prob}")
-                # print(f"Score {score[0]}, Weighted Score: {config.rm_regularizer*score[0]}")
-                tilted_score = cum_prob + config.rm_regularizer * score[0]
-                tilted_score = score[0]
-                # print(f"Tilted Score: {tilted_score}")
-                tilted_scores[branch_index] = tilted_score
+                prompts.append(beam.prompt)
+                completions.append([candidate])
+                cum_probs.append(cum_prob)
+                # score = prm._score_one_example(beam.prompt, candidate)
 
+                # # print(f"Cum Prob: {cum_prob}")
+                # # print(f"Score {score[0]}, Weighted Score: {config.rm_regularizer*score[0]}")
+                # # tilted_score = cum_prob + config.rm_regularizer * score[0]
+
+                # tilted_score = score[0]
+                # # print(f"Tilted Score: {tilted_score}")
+                # tilted_scores[branch_index] = tilted_score
+                
+            scores = prm.score(prompts, completions) # |prompts| amount of scores
+
+            agg_scores = [
+                [aggregate_scores(s, config.agg_strategy) for s in score]
+                for score in scores
+            ]
+            
+            # print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
+            # print(f"Length of Agg Scores: {len(agg_scores)}")
+            # print(f"Len (agg scores[0]): {len(agg_scores[0])}")
+
+            # tilted_scores = agg_scores[0]
+            # tilted_scores = tilted_scores - torch.max(tilted_scores)
+            # probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
+            
+            # Filter duplicate active beams
+            if config.filter_duplicates:
+                # Create a dictionary to filter duplicates and retain order
+                unique_beam_dict = {}
+                for i, candidate in enumerate(beam.next_texts):
+                    if candidate not in unique_beam_dict:
+                        unique_beam_dict[candidate] = (
+                            i  # Map the unique text to its index
+                        )
+                agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
+                cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
+
+            tilted_scores = torch.Tensor(agg_scores).flatten() + config.rm_regularizer*torch.Tensor(cum_probs)
             tilted_scores = tilted_scores - torch.max(tilted_scores)
-            probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
+            probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores))
+            # print(torch.Tensor(agg_scores).flatten())
+            # print(torch.Tensor(cum_probs))
+            # assert False
             try:
                 chosen_index = torch.multinomial(probs, num_samples=1)
-                # chosen_index = torch.argmax(probs)
+                # chosen_index = np.argmax(probs)
             except:
-                print(f"Tilted Scores: {tilted_scores}")
+                print(f"\n Tilted Scores: {tilted_scores}")
                 print(f"Probs: {probs}")
                 chosen_index = 0
             # print(f"Chosen Index: {chosen_index}")
