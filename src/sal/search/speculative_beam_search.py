@@ -70,7 +70,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
     completed_beams: list[Beam] = []
 
 
-    for i in tqdm(range(config.num_iterations), desc="Beam search iterations"):
+    for i in tqdm(range(config.num_iterations), desc="Speculative beam search iterations"):
         # print(i)
         # assert False
         if i == 0:
@@ -150,13 +150,17 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 candidate = beam.current_text + next_text
                 score = prm._score_one_example(beam.prompt, candidate)
                 # print(f"Cum Prob: {cum_prob}")
+                # print(f"Score {score[0]}, Weighted Score: {config.rm_regularizer*score[0]}")
                 tilted_score = cum_prob + config.rm_regularizer * score[0]
+                tilted_score = score[0]
                 # print(f"Tilted Score: {tilted_score}")
                 tilted_scores[branch_index] = tilted_score
 
+            tilted_scores = tilted_scores - torch.max(tilted_scores)
             probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
             try:
                 chosen_index = torch.multinomial(probs, num_samples=1)
+                # chosen_index = torch.argmax(probs)
             except:
                 print(f"Tilted Scores: {tilted_scores}")
                 print(f"Probs: {probs}")
