@@ -44,7 +44,12 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_be
 --rm_regularizer=1
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
---rm_regularizer=0.1 --dataset_end=20
+--rm_regularizer=1 --dataset_end=20
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ \
 --rm_regularizer=0.5 --dataset_end=20
+
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --rm_regularizer=0.5
+## 8b model trials
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=0.8 --dataset_end=20

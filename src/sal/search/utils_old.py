@@ -138,64 +138,69 @@ def generate_k_steps(
         beam_index = 0
         # print(len(current_gen),len(llm_outputs)) # this is 4,4
         # assert False
-        # For speculative decoding, batch process all beams through target model
-        if speculative:
-            # Collect all prompts with generated text for batch processing
-            verification_prompts = [
-                gen_result.initial_prompt + output.outputs[0].text 
-                for gen_result, output in zip(current_gen, llm_outputs)
-            ]
-            
-            # Get logprobs from target model in one batch
-            verification_outputs = llm_target.generate(
-                verification_prompts,
-                verification_sampling_params, 
-                use_tqdm=False
-            )
-            
-            # Pre-compute token ids and logprobs for each beam
-            tokenizer = llm_target.get_tokenizer()
-            for gen_result, output, verification_output in zip(current_gen, llm_outputs, verification_outputs):
-                gen_text = output.outputs[0].text
-                gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
+        for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
+
+            # print("DOING BEAM:",beam_index)
+            # print(f"Output Length: {len(output.outputs)}")
+            gen_text = output.outputs[0].text #why zero here? should it be beam_index?
+            # print(f"GEN TEXT: {gen_text}")
+            # gen_result.cum_prob = output.outputs[0].cumulative_logprob
+            if speculative:
+                prompt_to_be_done = gen_result.initial_prompt
+                # print("\n\n----\n\n ",prompt_to_be_done,"\n\n--------\n\n")
+                # print(len(gen_prompts))
+                # print("--------\n\n")
+                # assert False
+                new_answer = prompt_to_be_done + gen_text
+                tokenizer = llm_target.get_tokenizer()
+                token_ids = tokenizer.encode(gen_text, add_special_tokens=True) 
+
+                verification_output = llm_target.generate(new_answer, verification_sampling_params, use_tqdm=False)
+                # assert False
+                # logprobs = torch.sum([logprob.logprob for logprob in verification_output[0].prompt_logprobs[-gen_sampling_params.max_tokens:]])
                 
-                # Calculate log probs for each token in generated text
+                # keys = token_ids[-gen_sampling_params.max_tokens:]
+                keys = token_ids
+                # should be the length of the responses generated above in gen_text
+
+                counter_start = -len(keys)
+                # log_probs = [verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob if verification_output[0].prompt_logprobs[counter_start + i].get(key) else 0.0 for i, key in enumerate(keys)]
                 log_probs = []
-                prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
-                
-                for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
-                    if token_id in token_logprobs:
-                        log_probs.append(token_logprobs[token_id].logprob)
+                # print(verification_output[0].prompt_logprobs[counter_start:])
+                # assert False
+                for i,key in enumerate(keys):
+                    # if verification_output[0].prompt_logprobs[counter_start + i]:
+                    # print(verification_output[0].prompt_logprobs[counter_start + i].get(key))
+
+                    if verification_output[0].prompt_logprobs[counter_start + i].get(key):
+                        lp = verification_output[0].prompt_logprobs[counter_start + i].get(key).logprob
                     else:
-                        log_probs.append(-10)
-                        
-                gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
-                gen_result.first_step_text = gen_text
-                gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
-                    gen_result.first_step_stop_reason = "EOS"
+                        # print(tokenizer.decode(key))
+                        # print(key)
+                        # print(verification_output[0].prompt_logprobs[counter_start + i])
+                        lp = -100
+                    # else:
+                    #     lp = -100000
+                    log_probs.append(lp)
+                print("Log probs:")
+                print(log_probs)
+                assert False
+                total_log_probs = torch.sum(torch.tensor(log_probs))
+                gen_result.cum_prob = total_log_probs
 
-                gen_result.lookahead_text = gen_result.lookahead_text + gen_text
-                gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
-                    gen_result.stop_reason = "EOS"
+            # if i == 0:
+            gen_result.first_step_text = gen_text
+            gen_result.first_step_stop_reason = output.outputs[0].stop_reason
+            if gen_result.first_step_stop_reason is None:
+                gen_result.first_step_stop_reason = "EOS"
 
-                beam_index += 1
-            
-        else:
-            for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
-                gen_text = output.outputs[0].text
-                gen_result.first_step_text = gen_text
-                gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
-                    gen_result.first_step_stop_reason = "EOS"
+            gen_result.lookahead_text = gen_result.lookahead_text + gen_text
+            gen_result.stop_reason = output.outputs[0].stop_reason
+            if gen_result.stop_reason is None:
+                gen_result.stop_reason = "EOS"
 
-                gen_result.lookahead_text = gen_result.lookahead_text + gen_text
-                gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
-                    gen_result.stop_reason = "EOS"
-
-                beam_index += 1
+            beam_index += 1
+    # print(f"Gen Results After: {gen_results}")
 
     outputs: list[Beam] = []
 
