@@ -23,7 +23,7 @@ from vllm import LLM, SamplingParams
 from sal.config import Config
 from sal.models.reward_models import PRM
 
-from .utils import Beam, build_conv, generate_k_steps, last
+from .utils import Beam, build_conv, generate_k_steps, last, generate_k_steps_from_next_texts
 
 logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
@@ -69,7 +69,8 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
     completed_beams: list[Beam] = []
 
-
+    verify_flag = -1
+    skip_sampling = 0
     for i in tqdm(range(config.num_iterations), desc="Speculative beam search iterations"):
         # print(i)
         # assert False
@@ -120,9 +121,59 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             tokenize=False,
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
+        
+
         gen_results = generate_k_steps(
-            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True
+            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False
         ) #1 (N/M) thing in it, with M different next_texts in each of them
+
+        skip_sampling += 1
+        if config.period > 0:
+            if skip_sampling % config.period == 0:
+                # next_texts = [gen_result.next_texts for gen_result in gen_results]
+                prev_next_texts = gen_results[0].next_texts
+                gen_results = generate_k_steps_from_next_texts(
+                    templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True
+                )
+             #1 (N/M) thing in it, with M different next_texts in each of them
+        
+            # dont_verify_flag *= -1
+            # continue
+        # print(f"Gen Results: {gen_results}")
+        # print(f"Length of Gen Results: {len(gen_results)}")
+        # # print(f"Length of Gen Results[0]: {len(gen_results[0])}")
+        # print(f"Length of Gen Results[0].next_texts: {len(gen_results[0].next_texts)}")
+        # assert False
+
+        # def generate_and_select_best_beams(templated_convs, lookahead, llm, sampling_params, beam_width, m):
+        #     """
+        #     Generate beams using generate_k_steps and select the best n//m beams.
+
+        #     Args:
+        #         templated_convs (list): The input conversations for generation.
+        #         lookahead (int): The number of lookahead steps.
+        #         llm (LLM): The language model used for generation.
+        #         sampling_params (SamplingParams): The parameters for sampling.
+        #         beam_width (int): The number of beams to generate.
+        #         m (int): The number of beams to consider.
+
+        #     Returns:
+        #         list[Beam]: The best n//m beams based on their cumulative probabilities.
+        #     """
+        #     gen_results = generate_k_steps(
+        #         templated_convs, lookahead, llm, sampling_params, beam_width
+        #     )
+
+        #     # Sort the generated results based on cumulative probabilities
+        #     sorted_results = sorted(gen_results, key=lambda x: x.cum_prob, reverse=True)
+        #     # Select the top n//m beams
+        #     best_beams = sorted_results[:config.n // m]
+        #     return best_beams
+
+        # # Call the function to generate and select the best beams
+        # m = config.m  # Assuming config.m is defined somewhere in your code
+        # best_beams = generate_and_select_best_beams(templated_convs, lookahead, llm, sampling_params, beam_width=config.n, m=m)
+
 
         # prompts, completions = [], []
         for beam, gen_result in zip(active_beams, gen_results, strict=True): # runs for N/M (1) times
@@ -179,6 +230,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             # probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
             
             # Filter duplicate active beams
+
             if config.filter_duplicates:
                 # Create a dictionary to filter duplicates and retain order
                 unique_beam_dict = {}

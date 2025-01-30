@@ -38,6 +38,8 @@ class Config:
     overwrite_hub_revision: bool = False
     apply_voting: bool = True
 
+    period: int = 0
+
     # Dataset Related Options
     dataset_name: str = "HuggingFaceH4/MATH-500"
     dataset_config: str = None
@@ -62,7 +64,7 @@ class Config:
     max_model_len: int = 131072
     max_target_model_len: int = 131072
     rm_regularizer: float = 0.1
-
+    target_gpu_memory_utilization: float = 0.1
     # DVTS / Beam Search options
     beam_width: int = 4  # m in the paper
     num_iterations: int = 40

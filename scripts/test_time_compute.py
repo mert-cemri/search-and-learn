@@ -74,7 +74,7 @@ def main():
     if config.approach == "speculative_beam_search":
         llm_target = LLM(
         model=config.target_model_path,
-        gpu_memory_utilization=config.gpu_memory_utilization,
+        gpu_memory_utilization=config.target_gpu_memory_utilization,
         enable_prefix_caching=False,
         seed=config.seed,
         tensor_parallel_size=num_gpus,
