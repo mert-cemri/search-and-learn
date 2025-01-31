@@ -61,3 +61,5 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_be
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.2 --max_model_len=10000
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.2 --max_model_len=10000
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1 --n=4
