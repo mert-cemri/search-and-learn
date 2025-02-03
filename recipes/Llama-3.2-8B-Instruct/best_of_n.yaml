@@ -1,0 +1,12 @@
+# refer to src/sal/config.py for more options
+
+approach: best_of_n
+n: 16
+search_batch_size: 25
+sort_completed: true
+filter_duplicates: true
+dataset_start: 0
+dataset_end: 100
+seed: 42
+gpu_memory_utilization: 0.4
+max_model_len: 50400

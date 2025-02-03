@@ -51,14 +51,26 @@ def main():
     # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     num_gpus = torch.cuda.device_count()
-    llm = LLM(
-        model=config.model_path,
-        gpu_memory_utilization=config.gpu_memory_utilization,
-        enable_prefix_caching=True,
-        seed=config.seed,
-        tensor_parallel_size=num_gpus,
-        max_model_len=config.max_model_len,
-    )
+    if config.target_model_path and config.approach != "speculative_beam_search":
+        llm = LLM(
+            model=config.target_model_path,
+            speculative_model=config.model_path,
+            num_speculative_tokens=5,
+            gpu_memory_utilization=config.gpu_memory_utilization,
+            enable_prefix_caching=True,
+            seed=config.seed,
+            tensor_parallel_size=num_gpus,
+            max_model_len=config.max_model_len,
+        )
+    else:
+        llm = LLM(
+            model=config.model_path,
+            gpu_memory_utilization=config.gpu_memory_utilization,
+            enable_prefix_caching=True,
+            seed=config.seed,
+            tensor_parallel_size=num_gpus,
+            max_model_len=config.max_model_len,
+        )
     prm = load_prm(config)        
 
     dataset = get_dataset(config)

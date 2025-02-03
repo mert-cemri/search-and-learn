@@ -1,0 +1,4 @@
+,Method,Success Rate,Time (s)
+0,spec_align_500_b10,0.418,2772.7
+1,spec_align_500_b4,0.412,2664.5
+2,spec_align_500_b6,0.406,2815.0
