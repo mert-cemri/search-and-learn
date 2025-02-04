@@ -5,6 +5,10 @@ runtime: 928.3
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
 runtime: 4939.4
 
+BEAM SEARCH WITH 3B
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
+runtime:
+
 BEAM SEARCH WITH SD 1B-8B
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000
 runtime: 1032.9
@@ -80,4 +84,14 @@ python scripts/test_time_compute.py recipes/Speculative-Llama-1B-8B/speculative_
 runtime:
 
 python scripts/test_time_compute.py recipes/Speculative-Llama-1B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --dataset_end=500
+runtime:
+
+SPECULATIVE IMPORTANCE SEARCH
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_importance_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1 --n=4
+runtime: 
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_importance_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4
+runtime:
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_importance_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=4 --n=4
 runtime:

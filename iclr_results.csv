@@ -1,4 +1,23 @@
 ,Method,Success Rate,Time (s)
-0,spec_align_500_b10,0.418,2772.7
-1,spec_align_500_b4,0.412,2664.5
-2,spec_align_500_b6,0.406,2815.0
+0,beam_search_sd_100,0.49,1032.9
+1,beam_search_sd_500,0.496,7018.0
+2,beam_search_100,0.59,928.3
+3,beam_search_500,0.542,4939.4
+4,best_of_n_100_n4,0.04,147.9
+5,best_of_n_100_n16,0.3,691.2
+6,best_of_n_100_n24,0.4,771.3
+7,best_of_n_500_n4,0.076,754.2
+8,best_of_n_500_n24,0.374,5434.5
+9,spec_align_100,0.51,522.3
+10,spec_align_100_1b8b,0.21,690.5
+11,spec_align_500,0.402,2725.9
+12,spec_align_500_b1,0.406,3009.9
+13,spec_align_500_b2,0.412,3181.2
+14,spec_align_500_b10,0.418,2772.7
+15,spec_align_500_b4,0.412,2664.5
+16,spec_align_500_b6,0.406,2815.0
+17,spec_align_500_n12_b3,0.432,5774.9
+18,spec_align_500_n12,0.4,6041.5
+19,spec_align_100_n6,0.44,731.17
+20,spec_align_100_n8,0.44,689.5
+21,spec_align_100_n12,0.43,921.8

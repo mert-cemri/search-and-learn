@@ -20,7 +20,7 @@ from vllm import LLM
 
 from sal.config import Config
 from sal.models.reward_models import load_prm
-from sal.search import beam_search, best_of_n, dvts, speculative_beam_search
+from sal.search import beam_search, best_of_n, dvts, speculative_beam_search, speculative_importance_search
 from sal.utils.data import get_dataset, save_dataset
 from sal.utils.parser import H4ArgumentParser
 from sal.utils.score import score
@@ -34,6 +34,7 @@ logger.setLevel(logging.INFO)
 
 
 APPROACHES = {
+    "speculative_importance_search": speculative_importance_search,
     "speculative_beam_search": speculative_beam_search,
     "beam_search": beam_search,
     "dvts": dvts,
@@ -51,7 +52,7 @@ def main():
     # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     num_gpus = torch.cuda.device_count()
-    if config.target_model_path and config.approach != "speculative_beam_search":
+    if config.approach == "beam_search_SD":
         llm = LLM(
             model=config.target_model_path,
             speculative_model=config.model_path,
@@ -83,7 +84,7 @@ def main():
     # dataset = dataset.map(process_example)
 
     
-    if config.approach == "speculative_beam_search":
+    if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
         llm_target = LLM(
         model=config.target_model_path,
         gpu_memory_utilization=config.target_gpu_memory_utilization,
@@ -95,7 +96,7 @@ def main():
 
     start = time.time()
 
-    if config.approach == "speculative_beam_search":
+    if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
         dataset = dataset.map(
             approach_fn,
             batched=True,
