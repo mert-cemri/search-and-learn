@@ -75,8 +75,8 @@ def save_dataset(dataset, config):
         model_path = config.model_path.replace("/","")
         target_model_path = config.target_model_path.replace("/","") if config.target_model_path else ""
         if config.max_tokens != 2048:
-            dataset.to_json(f"{config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_t{config.max_tokens}.jsonl", lines=True)
-            logger.info(f"Saved completions to {config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_t{config.max_tokens}.jsonl")
+            dataset.to_json(f"{config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_t{config.max_tokens}_num_iters{config.num_iterations}_model_len{config.max_model_len}.jsonl", lines=True)
+            logger.info(f"Saved completions to {config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_t{config.max_tokens}_num_iters{config.num_iterations}_model_len{config.max_model_len}.jsonl")
         else:
-            dataset.to_json(f"{config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}.jsonl", lines=True)
-            logger.info(f"Saved completions to {config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}.jsonl")
+            dataset.to_json(f"{config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_model_len{config.max_model_len}.jsonl", lines=True)
+            logger.info(f"Saved completions to {config.output_dir}/{model_path}-{target_model_path}_n{config.n}_b{config.rm_regularizer}_q{config.dataset_end}_period{config.period}_model_len{config.max_model_len}.jsonl")

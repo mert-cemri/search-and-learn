@@ -22,6 +22,8 @@ from vllm import LLM, SamplingParams
 logger = logging.getLogger()
 import torch
 
+import time
+
 def build_conv(
     prompt: str, response: str | None, system_prompt: str
 ) -> list[dict[str, str]]:
@@ -85,7 +87,7 @@ def generate_k_steps(
     sampling_params: SamplingParams,
     beam_width: int,
     llm_target = None,
-    speculative = False,
+    speculative = False, max_tokens = 2048,
 ) -> list[Beam]:
     if llm_target is None:
         llm_target = llm
@@ -172,27 +174,31 @@ def generate_k_steps(
                 gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
+                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
+                # print(f"\n ******* Gen Token Length: {len(gen_token_ids)} Stop reason: {gen_result.stop_reason} ********** \n")
+                # time.sleep(2)
+                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.stop_reason = "EOS"
 
                 beam_index += 1
             
         else:
+            tokenizer = llm.get_tokenizer()
             for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
                 gen_text = output.outputs[0].text
+                gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
+                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
+                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.stop_reason = "EOS"
 
                 beam_index += 1
@@ -242,7 +248,7 @@ def generate_k_steps(
     return outputs
 
 def generate_k_steps_from_next_texts(
-    templated_convs, prev_next_texts, lookahead_steps, llm, sampling_params, beam_width, llm_target=None, speculative=False
+    templated_convs, prev_next_texts, lookahead_steps, llm, sampling_params, beam_width, llm_target=None, speculative=False, max_tokens = 2048,
 ):
     if llm_target is None:
         llm_target = llm
@@ -330,27 +336,29 @@ def generate_k_steps_from_next_texts(
                 gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
+                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
+                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.stop_reason = "EOS"
 
                 beam_index += 1
             
         else:
+            tokenizer = llm.get_tokenizer()
             for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
                 gen_text = output.outputs[0].text
+                gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None:
+                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None:
+                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.stop_reason = "EOS"
 
                 beam_index += 1

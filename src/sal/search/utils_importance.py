@@ -152,17 +152,22 @@ def generate_k_steps(
                 verification_sampling_params, 
                 use_tqdm=False
             )
-            
+            verification_outputs_small_model = llm.generate(
+                verification_prompts,
+                verification_sampling_params, 
+                use_tqdm=False
+            )
             # Pre-compute token ids and logprobs for each beam
             tokenizer = llm_target.get_tokenizer()
-            for gen_result, output, verification_output in zip(current_gen, llm_outputs, verification_outputs):
+            for gen_result, output, verification_output, verification_output_small_model in zip(current_gen, llm_outputs, verification_outputs, verification_outputs_small_model):
                 gen_text = output.outputs[0].text
                 gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 
                 # Calculate log probs for each token in generated text
                 log_probs = []
                 prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
-                
+                prompt_logprobs_small_model = verification_output_small_model.prompt_logprobs[-len(gen_token_ids):]
+
                 for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
                     if token_id in token_logprobs:
                         log_probs.append(token_logprobs[token_id].logprob)

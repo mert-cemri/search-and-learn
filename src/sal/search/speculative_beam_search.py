@@ -123,17 +123,21 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
         
 
-        gen_results = generate_k_steps(
-            templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False
-        ) #1 (N/M) thing in it, with M different next_texts in each of them
-
+        if config.period == 0:
+            gen_results = generate_k_steps(
+                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+            ) #1 (N/M) thing in it, with M different next_texts in each of them
+        else:
+            gen_results = generate_k_steps(
+                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens
+            ) #1 (N/M) thing in it, with M different next_texts in each of them
         skip_sampling += 1
         if config.period > 0:
             if skip_sampling % config.period == 0:
                 # next_texts = [gen_result.next_texts for gen_result in gen_results]
                 prev_next_texts = gen_results[0].next_texts
                 gen_results = generate_k_steps_from_next_texts(
-                    templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True
+                    templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
                 )
              #1 (N/M) thing in it, with M different next_texts in each of them
         
@@ -187,7 +191,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
             if (
                 beam.stop_reasons[0] == "EOS"
-                or beam.stop_reasons[0] == "length"
+                # or beam.stop_reasons[0] == "length"
                 or beam.next_texts[0] == ""
             ):
                 beam.completed = True
@@ -285,6 +289,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
         # Early stopping if all beams are completed
         if len(active_beams) == 0:
+            # print(f"\nStopping reason: {beam.stop_reasons[0]}\n\n")
             break
 
         # # Filter duplicate active beams
