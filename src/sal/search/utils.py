@@ -193,12 +193,12 @@ def generate_k_steps(
                 gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
+                if gen_result.first_step_stop_reason is None:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
-                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
+                if gen_result.stop_reason is None:
                     gen_result.stop_reason = "EOS"
 
                 beam_index += 1

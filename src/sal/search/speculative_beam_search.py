@@ -344,7 +344,34 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
 def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
     problems = examples["problem"]
-    beam_results = _beam_search(problems, config, llm, prm, llm_target)
+    beam_results = []
+    try:
+        beam_results = _beam_search(problems, config, llm, prm, llm_target)
+    except Exception as e:
+        print(f"\n\n *** An error occurred: {e} *** \n\n")
+
+    if len(beam_results)==0:
+        beam_results: list[Beam] = []
+        for prompt in problems:
+            i = 0
+            # for i in range(config.n):
+            beam_results.append(
+                Beam(
+                    prompt=prompt,
+                    index=i,
+                    current_text="",
+                    next_texts=None,
+                    lookahead_texts=None,
+                    pruned=False,
+                    completed=False,  # New flag to track completion
+                    stop_reasons=None,
+                    history=[],
+                    best_scores=[],
+                    all_scores=[],
+                    previous_text=None,
+                    completion_tokens=0,
+                )
+            )
 
     # Group together alike beams and store in the dataset
     grouped_results = defaultdict(list)
@@ -356,7 +383,13 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
     for p in problems:
         beams = grouped_results[p]
         
-        assert len(beams)==1
+        if len(beams)!=1:
+            print(f"Number of beams: {len(beams)}")
+            for beam in beams:
+                print(f"Beam: {beam.current_text}")
+        # else:
+        #     print(f"Number of beams: {len(beams)}")
+        assert len(beams)<=1
 
         completions = [b.current_text for b in beams]
         # agg_scores = [

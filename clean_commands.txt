@@ -6,13 +6,16 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.ya
 runtime: 4939.4
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.10 --max_model_len=4976 --dataset_end=500
+runtime: 
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=3 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
 runtime:
 
-python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=3 --gpu_memory_utilization=0.10 --max_model_len=4976 --dataset_end=500
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=2 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
 runtime:
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=2 --gpu_memory_utilization=0.10 --max_model_len=4976 --dataset_end=500
-runtime:
+runtime: 12404.7
 
 BEAM SEARCH WITH 3B
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
@@ -26,6 +29,18 @@ python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search_SD
 runtime: 7018
 
 BEST OF N
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --n=1 --gpu_memory_utilization=0.15 --max_model_len=10000
+runtime: 88.11
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=1 --gpu_memory_utilization=0.15 --max_model_len=10000
+runtime: 58.0
+
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --n=1 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500
+runtime: 504.7
+ 
+python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=1 --gpu_memory_utilization=0.15 --max_model_len=10000 -dataset_end=500
+runtime: 631.9
+
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/best_of_n.yaml --model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000
 runtime: 147.9
 
@@ -111,11 +126,36 @@ python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_
 runtime: 
 
 python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --max_tokens=512 --num_iterations=160
-runtime: 
+runtime: 1005.3
 
 python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --max_tokens=256 --num_iterations=320
-runtime: 
+runtime: 3890.1
 
 python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --max_tokens=128 --num_iterations=640
+runtime: 4274.5
+
+
+FIXED SPECULATIVE BEAM SEARCH
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4
+runtime:  1659.6
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4
 runtime: 
 
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --period=2
+runtime: 662.3
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --period=1
+runtime: 374.7
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --period=1 --dataset_end=500
+runtime: 2696.8
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=12 --period=1 --dataset_end=500
+runtime: 2673.8
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --period=3 --dataset_end=500
+runtime: 2721.4
+
+python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-3B-Instruct-AWQ --target_model_path=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 --rm_regularizer=1.5 --n=4 --period=1 --dataset_end=500
+runtime: 2701.9
