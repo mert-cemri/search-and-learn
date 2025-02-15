@@ -14,7 +14,7 @@
 # limitations under the License.
 import copy
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from vllm import LLM, SamplingParams
@@ -67,7 +67,7 @@ class Beam:
     history: list[str]
     completed: bool = False
     completion_tokens: int = 0
-    cum_prob: int = 0
+    cum_probs: list = field(default_factory=list)
 
 
 @dataclass
@@ -78,7 +78,7 @@ class GenResult:
     first_step_stop_reason: str
     lookahead_text: str
     stop_reason: str | None
-    cum_prob: int = 0
+    cum_prob: float = 0.0
 
 def generate_k_steps(
     templated_convs,
@@ -236,7 +236,7 @@ def generate_k_steps(
             previous_text=None,
             pruned=False,
             history=[],
-            cum_prob = cum_probs
+            cum_probs = cum_probs
         )
         outputs.append(beam_result)
     # print('\n\n---------------\n\n')
@@ -396,7 +396,7 @@ def generate_k_steps_from_next_texts(
             previous_text=None,
             pruned=False,
             history=[],
-            cum_prob = cum_probs
+            cum_probs = cum_probs
         )
         outputs.append(beam_result)
     # print('\n\n---------------\n\n')

@@ -27,7 +27,7 @@ from .utils import Beam, build_conv, generate_k_steps, last
 
 logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
-
+import time
 
 def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[Beam]:
     sampling_params = SamplingParams(
@@ -199,14 +199,18 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM) -> list[B
 
 def beam_search(examples, config: Config, llm: LLM, prm: PRM):
     problems = examples["problem"]
+    start_time = time.time()
     beam_results = _beam_search(problems, config, llm, prm)
+    end_time = time.time()
+    time_taken = end_time - start_time
+   
 
     # Group together alike beams and store in the dataset
     grouped_results = defaultdict(list)
     for results in beam_results:
         grouped_results[results.prompt].append(results)
 
-    results = {"completions": [], "pred": [], "completion_tokens": [], "scores": []}
+    results = {"completions": [], "pred": [], "completion_tokens": [], "scores": [], "runtime": [time_taken] * len(problems)}
 
     for p in problems:
         beams = grouped_results[p]
@@ -216,6 +220,8 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM):
         ]
         pred = completions[np.argmax(agg_scores)]
         results["completions"].append(completions)
+        # print(f"Beam scores agg score example: {agg_scores[0]}")
+        # print(f"Beam all scores example: {beams[0].all_scores}")
         results["scores"].append([b.all_scores for b in beams])
         results["pred"].append(pred)
         results["completion_tokens"].append([b.completion_tokens for b in beams])

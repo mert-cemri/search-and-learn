@@ -122,6 +122,9 @@ def main():
 
     dataset = score(dataset, config)
 
+    # # Add runtime to dataset
+    # dataset = dataset.add_column("runtime", [runtime] * len(dataset))
+
     save_dataset(dataset, config)
     logger.info("Done 🔥!")
     logger.info(f"Runtime: {runtime}")

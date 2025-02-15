@@ -20,8 +20,9 @@ from sal.config import Config
 from sal.models.reward_models import PRM
 from sal.utils.score import aggregate_scores
 
-
+import time
 def best_of_n(x, config: Config, llm: LLM, prm: PRM):
+    start_time = time.time()
     tokenizer = llm.get_tokenizer()
 
     convs = [
@@ -90,5 +91,7 @@ def best_of_n(x, config: Config, llm: LLM, prm: PRM):
     x["scores"] = scores
     x["pred"] = pred
     x["completion_tokens"] = completion_tokens
-
+    end_time = time.time()
+    time_taken = end_time - start_time
+    x["runtime"] = [time_taken] * len(x["problem"])
     return x

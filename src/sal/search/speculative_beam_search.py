@@ -30,6 +30,8 @@ from sal.utils.score import aggregate_scores
 
 import torch
 
+import time
+
 def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_target = None) -> list[Beam]:
 
     if llm_target is None:
@@ -128,21 +130,20 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
             ) #1 (N/M) thing in it, with M different next_texts in each of them
         else:
-            gen_results = generate_k_steps(
-                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens
-            ) #1 (N/M) thing in it, with M different next_texts in each of them
-        skip_sampling += 1
-        if config.period > 0:
             if skip_sampling % config.period == 0:
-                # next_texts = [gen_result.next_texts for gen_result in gen_results]
+                gen_results = generate_k_steps(
+                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens
+                ) #1 (N/M) thing in it, with M different next_texts in each of them
                 prev_next_texts = gen_results[0].next_texts
                 gen_results = generate_k_steps_from_next_texts(
                     templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
                 )
-             #1 (N/M) thing in it, with M different next_texts in each of them
-        
-            # dont_verify_flag *= -1
-            # continue
+            else:
+                gen_results = generate_k_steps(
+                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                ) #1 (N/M) thing in it, with M different next_texts in each of them
+        skip_sampling += 1
+
         # print(f"Gen Results: {gen_results}")
         # print(f"Length of Gen Results: {len(gen_results)}")
         # # print(f"Length of Gen Results[0]: {len(gen_results[0])}")
@@ -180,12 +181,13 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
 
         # prompts, completions = [], []
+        # print(f"\n len(active_beams): {len(active_beams)} \n")
         for beam, gen_result in zip(active_beams, gen_results, strict=True): # runs for N/M (1) times
             beam.next_texts = gen_result.next_texts #new candidate beams, n amount
             beam.stop_reasons = gen_result.stop_reasons
             beam.lookahead_texts = gen_result.lookahead_texts
             beam.completion_tokens += gen_result.completion_tokens
-            beam.cum_prob = gen_result.cum_prob #list of probs of branches (beams), n amount
+            beam.cum_probs = gen_result.cum_probs #list of probs of branches (beams), n amount
             # beam.current_text += beam.next_texts[0] #CHANGE
             # beam.history.append(beam.next_texts[0]) #CHANGE
 
@@ -193,6 +195,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 beam.stop_reasons[0] == "EOS"
                 # or beam.stop_reasons[0] == "length"
                 or beam.next_texts[0] == ""
+                or i == config.num_iterations - 1
             ):
                 beam.completed = True
                 completed_beams.append(beam)
@@ -203,7 +206,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
                 next_text = beam.next_texts[branch_index]
                 # print(f"Branch Index: {branch_index}, Next Text: {next_text}")
-                cum_prob = beam.cum_prob[branch_index]
+                cum_prob = beam.cum_probs[branch_index]
                 candidate = beam.current_text + next_text
                 prompts.append(beam.prompt)
                 completions.append([candidate])
@@ -217,9 +220,10 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 # tilted_score = score[0]
                 # # print(f"Tilted Score: {tilted_score}")
                 # tilted_scores[branch_index] = tilted_score
-                
+            # print(f"len(beam.next_texts): {len(beam.next_texts)}")
             scores = prm.score(prompts, completions) # |prompts| amount of scores
-
+            # print(f"\nScores: {scores}\n")
+            # time.sleep(2)
             agg_scores = [
                 [aggregate_scores(s, config.agg_strategy) for s in score]
                 for score in scores
@@ -246,8 +250,16 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
                 cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
 
-            tilted_scores = torch.Tensor(agg_scores).flatten() + config.rm_regularizer*torch.Tensor(cum_probs)
-            tilted_scores = tilted_scores - torch.max(tilted_scores)
+            # print(f"\nCum Probs: {cum_probs}\n")
+            # print(f"\nAgg Scores: {agg_scores}\n")
+            # time.sleep(5)
+            cum_probs_tensor = torch.Tensor(cum_probs)
+            agg_scores_tensor = torch.Tensor(agg_scores)
+            assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
+            og_tilted_scores = agg_scores_tensor.flatten() + config.rm_regularizer*cum_probs_tensor.flatten()
+            tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
+            # print(f"Tilted Scores: {tilted_scores}")
+            # assert False
             probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores))
             # print(torch.Tensor(agg_scores).flatten())
             # print(torch.Tensor(cum_probs))
@@ -264,9 +276,9 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             # print(f"Chosen Text: {beam.next_texts[chosen_index]}")
             # print(f"Current Text: {beam.current_text}")
             if beam.all_scores:
-                beam.all_scores.append([tilted_scores[chosen_index]])
+                beam.all_scores.append(og_tilted_scores[chosen_index].item())
             else:
-                beam.all_scores = [[tilted_scores[chosen_index]]]
+                beam.all_scores = [og_tilted_scores[chosen_index].item()]
             beam.history.append(beam.next_texts[chosen_index])
             # prompts.append(beam.prompt)
             # completions.append([beam.current_text])
@@ -286,10 +298,12 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         #     agg_scores[i] for i, b in enumerate(active_beams) if not b.completed
         # ]
         active_beams = [b for b in active_beams if not b.completed]
-
+        # print(f"\n\n All Scores (active beams): {[b.all_scores for b in active_beams]} \n")
+        
         # Early stopping if all beams are completed
         if len(active_beams) == 0:
             # print(f"\nStopping reason: {beam.stop_reasons[0]}\n\n")
+            # print(f"\n\n All Scores: {[b.all_scores for b in completed_beams]} \n")
             break
 
         # # Filter duplicate active beams
@@ -319,6 +333,8 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         # print("+++++++++++++++++++++++\n\n")
 
     # Filter completed beams for those with top config.n scores
+    
+
     if config.sort_completed:
         completed_beams = sorted(
             completed_beams,
@@ -327,6 +343,8 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         )[: config.n]
     else:
         completed_beams = completed_beams[: config.n]
+
+    # print(f"\n\n All Scores (Final): {[b.all_scores for b in completed_beams]} \n")
 
     # if len(completed_beams) != config.n:
     #     # If we don't have enough completed_beams, duplicate until we reach config.n
@@ -343,66 +361,89 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
 
 
 def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
-    problems = examples["problem"]
-    beam_results = []
-    try:
-        beam_results = _beam_search(problems, config, llm, prm, llm_target)
-    except Exception as e:
-        print(f"\n\n *** An error occurred: {e} *** \n\n")
-
-    if len(beam_results)==0:
-        beam_results: list[Beam] = []
-        for prompt in problems:
-            i = 0
-            # for i in range(config.n):
-            beam_results.append(
-                Beam(
-                    prompt=prompt,
-                    index=i,
-                    current_text="",
-                    next_texts=None,
-                    lookahead_texts=None,
-                    pruned=False,
-                    completed=False,  # New flag to track completion
-                    stop_reasons=None,
-                    history=[],
-                    best_scores=[],
-                    all_scores=[],
-                    previous_text=None,
-                    completion_tokens=0,
+    # try:
+        problems = examples["problem"]
+        beam_results = []
+        start_time = time.time()
+        try:
+            beam_results = _beam_search(problems, config, llm, prm, llm_target)
+        except Exception as e:
+            print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
+        end_time = time.time()
+        time_taken = end_time - start_time
+        if len(beam_results)==0:
+            beam_results: list[Beam] = []
+            for prompt in problems:
+                i = 0
+                # for i in range(config.n):
+                beam_results.append(
+                    Beam(
+                        prompt=prompt,
+                        index=i,
+                        current_text="",
+                        next_texts=None,
+                        lookahead_texts=None,
+                        pruned=False,
+                        completed=False,  # New flag to track completion
+                        stop_reasons=None,
+                        history=[],
+                        best_scores=[],
+                        all_scores=[],
+                        previous_text=None,
+                        completion_tokens=0,
+                    )
                 )
-            )
 
-    # Group together alike beams and store in the dataset
-    grouped_results = defaultdict(list)
-    for results in beam_results:
-        grouped_results[results.prompt].append(results)
+        # Group together alike beams and store in the dataset
+        grouped_results = defaultdict(list)
+        for results in beam_results:
+            grouped_results[results.prompt].append(results)
 
-    results = {"completions": [], "pred": [], "completion_tokens": [], "scores": []}
+        results = {"completions": [], "pred": [], "completion_tokens": [], "scores": [], "runtime": [time_taken] * len(problems)}
 
-    for p in problems:
-        beams = grouped_results[p]
-        
-        if len(beams)!=1:
-            print(f"Number of beams: {len(beams)}")
-            for beam in beams:
-                print(f"Beam: {beam.current_text}")
-        # else:
-        #     print(f"Number of beams: {len(beams)}")
-        assert len(beams)<=1
+        for p in problems:
+            beams = grouped_results[p]
+            
+            if len(beams)!=1:
+                print(f"Number of beams: {len(beams)}")
+                for beam in beams:
+                    print(f"Beam: {beam.current_text}")
+            # else:
+            #     print(f"Number of beams: {len(beams)}")
+            assert len(beams)<=1
 
-        completions = [b.current_text for b in beams]
-        # agg_scores = [
-        #     aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
-        # ]
-        pred = completions[0]
-        # print(f"Prompt: {p}")
-        # print(f"Completions: {completions}")
-        # print(f"Prediction: {pred}")
-        # assert False
-        results["completions"].append(completions)
-        results["scores"].append([b.cum_prob for b in beams])
-        results["pred"].append(pred)
-        results["completion_tokens"].append([b.completion_tokens for b in beams])
+            completions = [b.current_text for b in beams]
+            try:
+                agg_scores = [
+                    aggregate_scores(b.all_scores, config.agg_strategy) for b in beams
+                ]
+            except Exception as e:
+                print(f"Number of beams: {len(beams)}")
+                print(f"\n\n *** An error occurred at the last stage of beam search: {e} *** \n\n")
+                print(f"All Scores: {[b.all_scores for b in beams]}")
+                assert False
+            pred = completions[0]
+            # print(f"Prompt: {p}")
+            # print(f"Completions: {completions}")
+            # print(f"Prediction: {pred}")
+            # assert False
+            results["completions"].append(completions)
+            # print(f"Cum Probs: {[b.cum_probs for b in beams]}")
+            # print(f"Beam scores agg score example: {agg_scores[0]}")
+            # print(f"All Scores: {[b.all_scores for b in beams]}")
+            results["scores"].append([b.all_scores for b in beams])
+            results["pred"].append(pred)
+            results["completion_tokens"].append([b.completion_tokens for b in beams])
 
-    return results
+        return results
+    # except Exception as e:
+    #     print(f"\n\n *** An error occurred at the last stage of beam search: {e} *** \n\n")
+    #     results ={
+    #         "completions": [["Error occurred"] for _ in problems],
+    #         "pred": ["Error occurred" for _ in problems],
+    #         "completion_tokens": [[0] for _ in problems],
+    #         "scores": [[[0.0]] for _ in problems],
+    #         "runtime": [0] * len(problems)
+    #     }
+    #     return results
+    

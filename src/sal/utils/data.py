@@ -70,7 +70,7 @@ def save_dataset(dataset, config):
         logger.info(f"Pushed dataset to {url}")
     else:
         if config.output_dir is None:
-            config.output_dir = f"data_iclr/{config.approach}"
+            config.output_dir = f"data_post_iclr/{config.approach}"
         Path(config.output_dir).mkdir(parents=True, exist_ok=True)
         model_path = config.model_path.replace("/","")
         target_model_path = config.target_model_path.replace("/","") if config.target_model_path else ""
