@@ -8,7 +8,6 @@
 # )
 from transformers import AutoModel, AutoTokenizer,AutoModelForSequenceClassification
 import torch
-device = 'cuda:5'
 import json
 from pathlib import Path
 import numpy as np
@@ -27,17 +26,63 @@ file_path = "/home/mert/spec/search-and-learn/data_iclr/beam_search/AMead10Llama
 with open(file_path, 'r') as f:
     data = [json.loads(line) for line in f]
 
+# for i in tqdm(range(0, len(data))):
+#     problem = data[i]['problem']
+#     solution = data[i]['solution']
+#     score = prm.score([problem], [[solution]])[0][0]
+#     if isinstance(score, (np.ndarray, list)):
+#             score = float(score[0]) 
+#     # print(f"score: {score}")
+#     # assert False
+#     scores.append(score)
+#     with open("prm_mistral_sanity_check_scores.json", "w") as file:
+#         json.dump(scores, file)
+def evaluate_reward(message, tokenizer, reward_model, device='cpu'):
+    """
+    Evaluate reward for a given message using the reward model.
+    
+    Args:
+        message (list): List of message dictionaries with 'role' and 'content' keys
+        tokenizer: The tokenizer to use
+        reward_model: The reward model to use
+        device (str): Device to run inference on
+        
+    Returns:
+        tuple: (reward_tensor, reward) containing the raw tensor and scalar reward value
+    """
+    message_template = tokenizer.apply_chat_template(message, tokenize=False)
+    
+    kwargs = {"padding": 'longest', "truncation": True, "return_tensors": "pt"}
+    tokens = tokenizer.encode_plus(message_template, **kwargs)
+
+    with torch.no_grad():
+        reward_tensor = reward_model(
+            tokens["input_ids"][0].view(1,-1).to(device), 
+            attention_mask=tokens["attention_mask"][0].view(1,-1).to(device)
+        )[0]
+        reward = reward_tensor.cpu().detach().item()
+    
+    return reward_tensor, reward
+
+device = 'cuda:0'
+
+
+model_name_or_path = "/home/mert/spec/mergekit/GRM-Llama3--crime"
+tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+reward_model = AutoModelForSequenceClassification.from_pretrained(
+                model_name_or_path, torch_dtype=torch.float16, 
+                device_map=device,
+                )
 for i in tqdm(range(0, len(data))):
     problem = data[i]['problem']
-    solution = data[i]['solution']
-    score = prm.score([problem], [[solution]])[0][0]
-    if isinstance(score, (np.ndarray, list)):
-            score = float(score[0]) 
-    # print(f"score: {score}")
-    # assert False
-    scores.append(score)
-    with open("prm_mistral_sanity_check_scores.json", "w") as file:
-        json.dump(scores, file)
+    answer = data[i]['answer']
+    message = [
+    {'role': 'user', f'content': "problem: {problem}"},
+    {'role': 'assistant', 'content': f"answer: {answer}"}
+    ]
+    reward_tensor, reward = evaluate_reward(message, tokenizer, reward_model, device)
+    scores.append(reward)
+
 
 print(f"len(scores): {len(scores)}")
 scores = np.array(scores)
@@ -75,4 +120,19 @@ Average PRM score: 0.4813
 Std of PRM scores: 0.3476
 Min PRM score: 0.0028
 Max PRM score: 1.0000
+"""
+
+"""
+custom solutions
+Average PRM score: -3.0555
+Std of PRM scores: 1.9144
+Min PRM score: -7.8320
+Max PRM score: 3.8633
+"""
+"""
+custom answers
+Average PRM score: -7.1693
+Std of PRM scores: 0.6661
+Min PRM score: -8.9688
+Max PRM score: -4.1719
 """
