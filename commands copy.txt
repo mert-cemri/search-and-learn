@@ -1,0 +1,1 @@
+mergekit-yaml examples/linear_3b_reward_3b_instruct.yml new_models -v --no-allow-crimes

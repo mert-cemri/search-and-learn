@@ -82,7 +82,8 @@ for i in tqdm(range(0, len(data))):
     ]
     reward_tensor, reward = evaluate_reward(message, tokenizer, reward_model, device)
     scores.append(reward)
-
+    with open("prm_double_head_sanity_check_scores_answers.json", "w") as file:
+        json.dump(scores, file)
 
 print(f"len(scores): {len(scores)}")
 scores = np.array(scores)
@@ -92,34 +93,37 @@ print(f"Std of PRM scores: {scores.std():.4f}")
 print(f"Min PRM score: {scores.min():.4f}")
 print(f"Max PRM score: {scores.max():.4f}")
 
+
+"""
+qwen (merged) math answers
+0.6660591802299023
+0.14266165240892736
+"""
+"""
+qwen (merged) math solutions
+0.8356026131510734
+0.11564540849264689
+"""
 """
 mistral answers
 Average PRM score: 0.4014
 Std of PRM scores: 0.1823
-Min PRM score: 0.0411
-Max PRM score: 0.9683
 """
 """
 mistral solutions
 Average PRM score: 0.6341
 Std of PRM scores: 0.2134
-Min PRM score: 0.1009
-Max PRM score: 0.9927
 """
 """
-answers
+deepseek answers
 Average PRM score: 0.6477
 Std of PRM scores: 0.3085
-Min PRM score: 0.0293
-Max PRM score: 1.0000
 """
 
 """
-solutions
+deepseek solutions
 Average PRM score: 0.4813
 Std of PRM scores: 0.3476
-Min PRM score: 0.0028
-Max PRM score: 1.0000
 """
 
 """
