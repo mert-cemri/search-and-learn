@@ -16,6 +16,9 @@
 from itertools import accumulate
 
 import torch
+import torch.nn.functional as F
+import numpy as np
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -338,7 +341,11 @@ class MergedModel(torch.nn.Module):
     def get_reward_scores(self, input_ids, base_outputs):
         reward_outputs = self.reward_score(base_outputs[0])
         step_sep_id = self.tokenizer.encode("<extra_0>")[0]
+        print(f"Input Ids: {input_ids}")
+        print(f"Step Sep Id: {step_sep_id}")
         token_masks = (input_ids == step_sep_id)
+        print(f"Token Masks: {token_masks.shape}")
+        print(f"Token Masks: {token_masks}")
         logits = reward_outputs[0]
         probabilities = F.softmax(logits, dim=-1)
         probabilities = probabilities * token_masks.unsqueeze(-1) # bs, seq_len, num_labels
@@ -347,8 +354,10 @@ class MergedModel(torch.nn.Module):
         for i in range(probabilities.size(0)):
             sample = probabilities[i] # seq_len, num_labels
             positive_probs = sample[sample != 0].view(-1, 2)[:, 1] # valid_tokens, num_labels
+            print(f"Positive Probs: {positive_probs.shape}")
             non_zero_elements_list = positive_probs.cpu().tolist()
-            all_scores_res.append(non_zero_elements_list)   
+            print(f"Non Zero Elements List: {non_zero_elements_list}")
+            all_scores_res.append(non_zero_elements_list)  
         return all_scores_res
     
     def forward(self, input_ids):
@@ -357,7 +366,11 @@ class MergedModel(torch.nn.Module):
         reward_outputs = self.reward_score(base_outputs[0])
         return base_outputs, lm_outputs, reward_outputs
 
-    def run_merged_model(self, input_ids):
+    def run_merged_model(self, input_ids, tokenizer):
+        print(f"\nInput Ids: {input_ids}\n")
+        decoded_input_ids = tokenizer.decode(input_ids[0])
+        print(f"\nDecoded Input Ids: {decoded_input_ids}\n")
+
         base_outputs = self.base_model(input_ids)
         lm_outputs = self.lm_head(base_outputs[0])
         rewards = self.get_reward_scores(input_ids, base_outputs)

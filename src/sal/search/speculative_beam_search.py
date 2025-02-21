@@ -221,6 +221,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 # # print(f"Tilted Score: {tilted_score}")
                 # tilted_scores[branch_index] = tilted_score
             # print(f"len(beam.next_texts): {len(beam.next_texts)}")
+            print(f"Len Completions: {len(completions)}")
             scores = prm.score(prompts, completions) # |prompts| amount of scores
             # print(f"\nScores: {scores}\n")
             # time.sleep(2)
@@ -228,11 +229,13 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 [aggregate_scores(s, config.agg_strategy) for s in score]
                 for score in scores
             ]
-            
-            # print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
-            # print(f"Length of Agg Scores: {len(agg_scores)}")
-            # print(f"Len (agg scores[0]): {len(agg_scores[0])}")
 
+            print(f"Scores: {scores}")
+            print(f"Agg Scores: {agg_scores}")
+            print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
+            print(f"Length of Agg Scores: {len(agg_scores)}")
+            print(f"Len (agg scores[0]): {len(agg_scores[0])}")
+            assert False
             # tilted_scores = agg_scores[0]
             # tilted_scores = tilted_scores - torch.max(tilted_scores)
             # probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
@@ -365,10 +368,10 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
         problems = examples["problem"]
         beam_results = []
         start_time = time.time()
-        try:
-            beam_results = _beam_search(problems, config, llm, prm, llm_target)
-        except Exception as e:
-            print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
+        # try:
+        beam_results = _beam_search(problems, config, llm, prm, llm_target)
+        # except Exception as e:
+        #     print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
         end_time = time.time()
         time_taken = end_time - start_time
         if len(beam_results)==0:
@@ -421,7 +424,7 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
                 print(f"Number of beams: {len(beams)}")
                 print(f"\n\n *** An error occurred at the last stage of beam search: {e} *** \n\n")
                 print(f"All Scores: {[b.all_scores for b in beams]}")
-                assert False
+                # assert False
             pred = completions[0]
             # print(f"Prompt: {p}")
             # print(f"Completions: {completions}")

@@ -367,18 +367,18 @@ def generate_k_steps_from_next_texts(
 
     counter = 0
     
-    for i, text in enumerate(templated_convs): #happens once (or N/M times)
-        next_texts = []
-        stop_reasons = []
-        lookahead_texts = []
-        cum_probs = []
-        for j in range(beam_width):
-            gen_result = gen_results[counter]
-            next_texts.append(prev_next_texts[i]+gen_result.first_step_text)
-            lookahead_texts.append(gen_result.lookahead_text)
-            stop_reasons.append(gen_result.first_step_stop_reason)
-            cum_probs.append(gen_result.cum_prob)
-            counter += 1
+    # for _, text in enumerate(templated_convs): #happens once (or N/M times)
+    next_texts = []
+    stop_reasons = []
+    lookahead_texts = []
+    cum_probs = []
+    for i in range(len(prev_next_texts)):
+        gen_result = gen_results[i]
+        next_texts.append(prev_next_texts[i]+gen_result.first_step_text)
+        lookahead_texts.append(gen_result.lookahead_text)
+        stop_reasons.append(gen_result.first_step_stop_reason)
+        cum_probs.append(gen_result.cum_prob)
+        # counter += 1
 
         # print("Inside the beam search")
         # print("NEXT TEXTS:",next_texts)

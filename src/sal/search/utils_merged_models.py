@@ -68,11 +68,13 @@ class Beam:
     completed: bool = False
     completion_tokens: int = 0
     cum_probs: list = field(default_factory=list)
-    prm_scores: list[float] = []
+    prm_scores: list = field(default_factory=list)
 
 @dataclass
 class GenResult:
     index: int
+    question: str
+    prev_solution: str
     initial_prompt: str
     first_step_text: str
     first_step_stop_reason: str
@@ -82,21 +84,23 @@ class GenResult:
     prm_score: float = 0.0
 
 def generate_k_steps(
+    prompts_and_texts,
     templated_convs,
     lookahead_steps: int,
     llm: LLM,
     sampling_params: SamplingParams,
     beam_width: int,
-    merged_model_reward: None,
-    speculative = False, max_tokens = 2048,
+    merged_model: None,
+    speculative = False, max_tokens = 2048, tokenizer= None
 ) -> list[Beam]:
-
-
+    # from transformers import AutoTokenizer
     gen_results = []
     for i, text in enumerate(templated_convs):
         for j in range(beam_width):
             gen_result = GenResult(
-                index=i,
+                index=j,
+                question=prompts_and_texts[i][0],
+                prev_solution=prompts_and_texts[i][1],
                 initial_prompt=text,
                 first_step_text="",
                 lookahead_text="",
@@ -155,7 +159,24 @@ def generate_k_steps(
             # tokenizer = llm_target.get_tokenizer()
             for gen_result, output in zip(current_gen, llm_outputs):
                 gen_text = output.outputs[0].text
-                reward_score, prob = merged_model_reward.run_merged_model(gen_result.initial_prompt + gen_text)
+                new_text = gen_result.initial_prompt + gen_text
+                messages = [
+                    {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
+                    {"role": "user", "content": gen_result.question},
+                    {"role": "assistant", "content": gen_result.prev_solution+gen_text+" <extra_0>"},
+                ]
+                conversation_str = tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=False
+                )
+                input_ids = tokenizer.encode(
+                            conversation_str, 
+                            return_tensors="pt"
+                            ).to(merged_model.device)
+                reward_score, prob = merged_model.run_merged_model(input_ids, tokenizer)
+                # del input_ids
+                # torch.cuda.empty_cache() 
                 # gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 
                 # # Calculate log probs for each token in generated text
@@ -169,8 +190,10 @@ def generate_k_steps(
                 #         log_probs.append(-10)
                         
                 # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
-                gen_result.cum_prob = prob
-                gen_result.prm_score = reward_score[0][0]
+                gen_result.cum_prob = np.sum(np.log(np.array(prob)))
+                print(f"Cum Prob: {prob}")
+                print(f"Reward Score: {reward_score}")
+                gen_result.prm_score = reward_score #returns however many <extra_0> tokens are there, for p. [0][0] indexes the score float.
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
                 if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
@@ -240,6 +263,7 @@ def generate_k_steps(
             cum_probs = cum_probs,
             prm_scores = prm_scores
         )
+        print(f"Beam Result: {beam_result.cum_probs}, {beam_result.prm_scores}")
         outputs.append(beam_result)
     # print('\n\n---------------\n\n')
     # print(print(beam_result))

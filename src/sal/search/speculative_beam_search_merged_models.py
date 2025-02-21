@@ -32,10 +32,7 @@ import torch
 
 import time
 
-def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_target = None) -> list[Beam]:
-
-    if llm_target is None:
-        llm_target = llm
+def _beam_search(batch_of_prompts, config: Config, llm: LLM, merged_model= None, tokenizer= None) -> list[Beam]:
 
     sampling_params = SamplingParams(
         temperature=config.temperature,
@@ -46,7 +43,6 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         n=config.n,
         logprobs=1
     )
-
     beams: list[Beam] = []
     for prompt in batch_of_prompts:
         i = 0
@@ -115,10 +111,10 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         continue_final_message = i > 0
         add_generation_prompt = i == 0
 
-        tokenizer = llm.get_tokenizer()
+        tokenizer_vllm = llm.get_tokenizer()
         if config.custom_chat_template is not None:
-            tokenizer.chat_template = config.custom_chat_template
-        templated_convs = tokenizer.apply_chat_template(
+            tokenizer_vllm.chat_template = config.custom_chat_template
+        templated_convs = tokenizer_vllm.apply_chat_template(
             convs,
             add_generation_prompt=add_generation_prompt,
             continue_final_message=continue_final_message,
@@ -126,23 +122,24 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
         
-
+        prompts_and_texts = [(b.prompt, b.current_text) for b in active_beams]
+        
         if config.period == 0:
             gen_results = generate_k_steps(
-                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                prompts_and_texts, templated_convs, lookahead, llm, sampling_params, beam_width=config.n, merged_model=merged_model, speculative=True, max_tokens = config.max_tokens, tokenizer=tokenizer
             ) #1 (N/M) thing in it, with M different next_texts in each of them
         else:
             if skip_sampling % config.period == 0:
                 gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens
+                    prompts_and_texts, templated_convs, lookahead, llm, sampling_params, beam_width=config.n, merged_model=merged_model, speculative=False, max_tokens = config.max_tokens, tokenizer=tokenizer
                 ) #1 (N/M) thing in it, with M different next_texts in each of them
                 prev_next_texts = gen_results[0].next_texts
                 gen_results = generate_k_steps_from_next_texts(
-                    templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                    prompts_and_texts, templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, merged_model=merged_model, speculative=True, max_tokens = config.max_tokens, tokenizer=tokenizer
                 )
             else:
                 gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                prompts_and_texts, templated_convs, lookahead, llm, sampling_params, beam_width=config.n, merged_model=merged_model, speculative=True, max_tokens = config.max_tokens, tokenizer=tokenizer
                 ) #1 (N/M) thing in it, with M different next_texts in each of them
         skip_sampling += 1
 
@@ -190,6 +187,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
             beam.lookahead_texts = gen_result.lookahead_texts
             beam.completion_tokens += gen_result.completion_tokens
             beam.cum_probs = gen_result.cum_probs #list of probs of branches (beams), n amount
+            beam.prm_scores = gen_result.prm_scores
             # beam.current_text += beam.next_texts[0] #CHANGE
             # beam.history.append(beam.next_texts[0]) #CHANGE
 
@@ -234,10 +232,19 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 for score in scores
             ]
             
-            # print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
-            # print(f"Length of Agg Scores: {len(agg_scores)}")
-            # print(f"Len (agg scores[0]): {len(agg_scores[0])}")
+            print(f"Scores: {scores}")
+            print(f"Agg Scores: {agg_scores}")
+            print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
+            print(f"Length of Agg Scores: {len(agg_scores)}")
+            print(f"Len (agg scores[0]): {len(agg_scores[0])}")
 
+            """
+            Scores: [[[1.0, 1.0, 0.99609375]]]s:   0%|                                                                                                                                                       | 0/20 [00:00<?, ?it/s]
+            Agg Scores: [[0.99609375]]
+            Scores: 1, Len (Scores[0]): 1
+            Length of Agg Scores: 1
+            Len (agg scores[0]): 1
+            """
             # tilted_scores = agg_scores[0]
             # tilted_scores = tilted_scores - torch.max(tilted_scores)
             # probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
@@ -252,13 +259,15 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                         unique_beam_dict[candidate] = (
                             i  # Map the unique text to its index
                         )
+                print(f"Unique Beam Dict: {unique_beam_dict}")
+                print(f"Unique Beam Dict Values: {unique_beam_dict.values()}")
                 agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
                 cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
 
             # print(f"\nCum Probs: {cum_probs}\n")
             # print(f"\nAgg Scores: {agg_scores}\n")
             # time.sleep(5)
-            cum_probs_tensor = torch.Tensor(cum_probs)
+            cum_probs_tensor = torch.log(torch.Tensor(cum_probs))
             agg_scores_tensor = torch.Tensor(agg_scores)
             assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
             og_tilted_scores = agg_scores_tensor.flatten() + config.rm_regularizer*cum_probs_tensor.flatten()
@@ -365,15 +374,16 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
     return completed_beams
 
 
-def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
+def beam_search(examples, config: Config, llm: LLM, merged_model= None, tokenizer= None):
     # try:
         problems = examples["problem"]
         beam_results = []
         start_time = time.time()
-        try:
-            beam_results = _beam_search(problems, config, llm, prm, llm_target)
-        except Exception as e:
-            print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
+        beam_results = _beam_search(problems, config, llm, merged_model, tokenizer)
+        # try:
+        #     beam_results = _beam_search(problems, config, llm, merged_model)
+        # except Exception as e:
+        #     print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
         end_time = time.time()
         time_taken = end_time - start_time
         if len(beam_results)==0:
@@ -398,6 +408,7 @@ def beam_search(examples, config: Config, llm: LLM, prm: PRM, llm_target=None):
                         completion_tokens=0,
                     )
                 )
+            print(f"\n\n *** Number of beam results was 0 *** \n\n")
 
         # Group together alike beams and store in the dataset
         grouped_results = defaultdict(list)
