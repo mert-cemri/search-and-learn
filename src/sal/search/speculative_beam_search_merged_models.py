@@ -232,11 +232,11 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, merged_model= None,
                 for score in scores
             ]
             
-            print(f"Scores: {scores}")
-            print(f"Agg Scores: {agg_scores}")
-            print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
-            print(f"Length of Agg Scores: {len(agg_scores)}")
-            print(f"Len (agg scores[0]): {len(agg_scores[0])}")
+            # print(f"Scores: {scores}")
+            # print(f"Agg Scores: {agg_scores}")
+            # print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
+            # print(f"Length of Agg Scores: {len(agg_scores)}")
+            # print(f"Len (agg scores[0]): {len(agg_scores[0])}")
 
             """
             Scores: [[[1.0, 1.0, 0.99609375]]]s:   0%|                                                                                                                                                       | 0/20 [00:00<?, ?it/s]
@@ -259,18 +259,20 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, merged_model= None,
                         unique_beam_dict[candidate] = (
                             i  # Map the unique text to its index
                         )
-                print(f"Unique Beam Dict: {unique_beam_dict}")
-                print(f"Unique Beam Dict Values: {unique_beam_dict.values()}")
+                # print(f"Unique Beam Dict: {unique_beam_dict}")
+                # print(f"Unique Beam Dict Values: {unique_beam_dict.values()}")
                 agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
                 cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
 
-            # print(f"\nCum Probs: {cum_probs}\n")
-            # print(f"\nAgg Scores: {agg_scores}\n")
+            # print(f"Cum Probs: {cum_probs}")  #[-43.9439791214748, -76.75622678139098, -73.27610047788302, -44.85813747502589]
+            # print(f"Agg Scores: {agg_scores}") #[[0.4638558626174927], [0.7828601002693176], [0.777328610420227], [0.5445356965065002]]
+
             # time.sleep(5)
-            cum_probs_tensor = torch.log(torch.Tensor(cum_probs))
+            cum_probs_tensor = torch.Tensor(cum_probs)
             agg_scores_tensor = torch.Tensor(agg_scores)
             assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
             og_tilted_scores = agg_scores_tensor.flatten() + config.rm_regularizer*cum_probs_tensor.flatten()
+            print(f"Og Tilted Scores: {og_tilted_scores}")
             tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
             # print(f"Tilted Scores: {tilted_scores}")
             # assert False

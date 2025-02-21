@@ -255,8 +255,8 @@ def generate_k_steps_from_next_texts(
 
     gen_results = []
     assert beam_width == 1
-    for i, text in enumerate(templated_convs):
-        for j in range(beam_width):
+    for _, text in enumerate(templated_convs):
+        for i in range(len(prev_next_texts)):
             gen_result = GenResult(
                 index=i,
                 initial_prompt=text+prev_next_texts[i],
@@ -372,6 +372,8 @@ def generate_k_steps_from_next_texts(
     stop_reasons = []
     lookahead_texts = []
     cum_probs = []
+    # print(f"Len prev next texts: {len(prev_next_texts)}")
+    # print(f"Len gen results: {len(gen_results)}")
     for i in range(len(prev_next_texts)):
         gen_result = gen_results[i]
         next_texts.append(prev_next_texts[i]+gen_result.first_step_text)
@@ -384,21 +386,21 @@ def generate_k_steps_from_next_texts(
         # print("NEXT TEXTS:",next_texts)
 
 
-        beam_result = Beam(
-            prompt=text,
-            index=i,
-            current_text="",
-            next_texts=next_texts,
-            lookahead_texts=lookahead_texts,
-            stop_reasons=stop_reasons,
-            best_scores=[0.0],
-            all_scores=[],
-            previous_text=None,
-            pruned=False,
-            history=[],
-            cum_probs = cum_probs
-        )
-        outputs.append(beam_result)
+    beam_result = Beam(
+        prompt=templated_convs[0],
+        index=i,
+        current_text="",
+        next_texts=next_texts,
+        lookahead_texts=lookahead_texts,
+        stop_reasons=stop_reasons,
+        best_scores=[0.0],
+        all_scores=[],
+        previous_text=None,
+        pruned=False,
+        history=[],
+        cum_probs = cum_probs
+    )
+    outputs.append(beam_result)
     # print('\n\n---------------\n\n')
     # print(print(beam_result))
     # print('\n\n---------------\n\n')

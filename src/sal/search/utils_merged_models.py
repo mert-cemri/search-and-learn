@@ -148,6 +148,29 @@ def generate_k_steps(
             #     for gen_result, output in zip(current_gen, llm_outputs)
             # ]
             
+            input_ids_batch = []
+            for i, output in enumerate(llm_outputs):
+                messages = [
+                    {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
+                    {"role": "user", "content": current_gen[i].question},
+                    {"role": "assistant", "content": current_gen[i].question+output.outputs[0].text+" <extra_0>"},
+                ]
+                conversation_str = tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=False
+                )
+                input_ids = tokenizer.encode(
+                            conversation_str, 
+                            return_tensors="pt"
+                            )
+                input_ids_batch.append(input_ids)
+
+            input_ids_batch = torch.cat(input_ids_batch, dim=0).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+            reward_score, prob = merged_model.run_merged_model(input_ids_batch, tokenizer)
+            reward_score = reward_score.detach().cpu()
+            
             # # Get logprobs from target model in one batch
             # verification_outputs = llm_target.generate(
             #     verification_prompts,
@@ -160,21 +183,8 @@ def generate_k_steps(
             for gen_result, output in zip(current_gen, llm_outputs):
                 gen_text = output.outputs[0].text
                 new_text = gen_result.initial_prompt + gen_text
-                messages = [
-                    {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
-                    {"role": "user", "content": gen_result.question},
-                    {"role": "assistant", "content": gen_result.prev_solution+gen_text+" <extra_0>"},
-                ]
-                conversation_str = tokenizer.apply_chat_template(
-                    messages, 
-                    tokenize=False, 
-                    add_generation_prompt=False
-                )
-                input_ids = tokenizer.encode(
-                            conversation_str, 
-                            return_tensors="pt"
-                            ).to(merged_model.device)
-                reward_score, prob = merged_model.run_merged_model(input_ids, tokenizer)
+                
+                # prob = prob.detach().cpu()
                 # del input_ids
                 # torch.cuda.empty_cache() 
                 # gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
@@ -191,20 +201,20 @@ def generate_k_steps(
                         
                 # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
                 gen_result.cum_prob = np.sum(np.log(np.array(prob)))
-                print(f"Cum Prob: {prob}")
-                print(f"Reward Score: {reward_score}")
+                # print(f"Cum Prob: {prob}")
+                # print(f"Reward Score: {reward_score}")
                 gen_result.prm_score = reward_score #returns however many <extra_0> tokens are there, for p. [0][0] indexes the score float.
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
-                    gen_result.first_step_stop_reason = "EOS"
+                # if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
+                #     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
                 gen_result.stop_reason = output.outputs[0].stop_reason
                 # print(f"\n ******* Gen Token Length: {len(gen_token_ids)} Stop reason: {gen_result.stop_reason} ********** \n")
                 # time.sleep(2)
-                if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
-                    gen_result.stop_reason = "EOS"
+                # if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
+                #     gen_result.stop_reason = "EOS"
 
                 beam_index += 1
             
@@ -263,7 +273,7 @@ def generate_k_steps(
             cum_probs = cum_probs,
             prm_scores = prm_scores
         )
-        print(f"Beam Result: {beam_result.cum_probs}, {beam_result.prm_scores}")
+        # print(f"Beam Result: {beam_result.cum_probs}, {beam_result.prm_scores}")
         outputs.append(beam_result)
     # print('\n\n---------------\n\n')
     # print(print(beam_result))

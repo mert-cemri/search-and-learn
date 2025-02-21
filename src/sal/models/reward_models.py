@@ -138,10 +138,10 @@ class RLHFFlow(PRM):
         self, **model_kwargs
     ) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
         tokenizer = AutoTokenizer.from_pretrained(
-            "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data"
+            "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data", #"Qwen/Qwen2.5-Math-PRM-7B"
         )
         model = AutoModelForCausalLM.from_pretrained(
-            "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data",
+            "RLHFlow/Llama3.1-8B-PRM-Deepseek-Data", #"Qwen/Qwen2.5-Math-PRM-7B"
             device_map="auto",
             torch_dtype=torch.bfloat16,
             **model_kwargs,
@@ -331,33 +331,37 @@ class MergedModel(torch.nn.Module):
         self.device = device
         
     def get_log_probs(self, lm_outputs, input_ids):
-        probs = []
+        probs = torch.zeros((lm_outputs.shape[0], self.total_tokens))
         lm_prob_dist = F.softmax(lm_outputs, dim=-1)
-        for offset in range(self.beginning_offset, self.beginning_offset+self.total_tokens):
-            prob = lm_prob_dist[0,-offset-1,input_ids[0][-offset]].item()
-            probs.append(prob)
+        
+        for i in range(probs.shape[0]):
+            for offset in range(self.beginning_offset, self.beginning_offset+self.total_tokens):
+                prob = lm_prob_dist[i,-offset-1,input_ids[0][-offset]].item()
+                probs[i, offset-self.beginning_offset] = prob
         return probs
     
     def get_reward_scores(self, input_ids, base_outputs):
         reward_outputs = self.reward_score(base_outputs[0])
         step_sep_id = self.tokenizer.encode("<extra_0>")[0]
-        print(f"Input Ids: {input_ids}")
-        print(f"Step Sep Id: {step_sep_id}")
         token_masks = (input_ids == step_sep_id)
-        print(f"Token Masks: {token_masks.shape}")
-        print(f"Token Masks: {token_masks}")
+        # print(f"Token Masks: {token_masks.shape}")
         logits = reward_outputs[0]
+        # print(f"Logits: {logits.shape}")
         probabilities = F.softmax(logits, dim=-1)
         probabilities = probabilities * token_masks.unsqueeze(-1) # bs, seq_len, num_labels
-
-        all_scores_res = []
-        for i in range(probabilities.size(0)):
-            sample = probabilities[i] # seq_len, num_labels
-            positive_probs = sample[sample != 0].view(-1, 2)[:, 1] # valid_tokens, num_labels
-            print(f"Positive Probs: {positive_probs.shape}")
-            non_zero_elements_list = positive_probs.cpu().tolist()
-            print(f"Non Zero Elements List: {non_zero_elements_list}")
-            all_scores_res.append(non_zero_elements_list)  
+        # print(f"Probabilities: {probabilities.shape}")
+        all_scores_res = torch.zeros(probabilities.size(0))
+        for i in range(probabilities.shape[0]):
+            # for j in range(probabilities.shape[1]):
+                sample = probabilities[i] # seq_len, num_labels
+                positive_probs = sample[sample != 0].view(-1, 2)[:, 1] # valid_tokens, num_labels]
+                # print(f"Positive Probs: {positive_probs.shape}")
+                # print(f"Positive Probs: {positive_probs.shape}")
+                # non_zero_elements_list = positive_probs.cpu().tolist()
+                # print(f"Non Zero Elements List: {non_zero_elements_list}")
+                all_scores_res[i] = torch.Tensor(positive_probs)  
+        # print(f"All Scores Res: {all_scores_res.shape}")
+        # print(f"All Scores Res: {all_scores_res}")
         return all_scores_res
     
     def forward(self, input_ids):
@@ -367,10 +371,9 @@ class MergedModel(torch.nn.Module):
         return base_outputs, lm_outputs, reward_outputs
 
     def run_merged_model(self, input_ids, tokenizer):
-        print(f"\nInput Ids: {input_ids}\n")
-        decoded_input_ids = tokenizer.decode(input_ids[0])
-        print(f"\nDecoded Input Ids: {decoded_input_ids}\n")
-
+        # print(f"\nInput Ids: {input_ids}\n")
+        # decoded_input_ids = tokenizer.decode(input_ids[0])
+        # print(f"\nDecoded Input Ids: {decoded_input_ids}\n")
         base_outputs = self.base_model(input_ids)
         lm_outputs = self.lm_head(base_outputs[0])
         rewards = self.get_reward_scores(input_ids, base_outputs)

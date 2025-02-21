@@ -1,15 +1,15 @@
 # refer to src/sal/config.py for more options
 
 filter_duplicates: true
-approach: speculative_beam_search_merged_models
+approach: speculative_beam_search
 n: 4
 search_batch_size: 1
 dataset_start: 0
 dataset_end: 100
 seed: 42
 gpu_memory_utilization: 0.10
-target_gpu_memory_utilization: 0.15
+target_gpu_memory_utilization: 0.20
 max_model_len: 6000
-max_target_model_len: 10000
+max_target_model_len: 6000
 rm_regularizer: 1
 period: 0

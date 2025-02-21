@@ -221,7 +221,7 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 # # print(f"Tilted Score: {tilted_score}")
                 # tilted_scores[branch_index] = tilted_score
             # print(f"len(beam.next_texts): {len(beam.next_texts)}")
-            print(f"Len Completions: {len(completions)}")
+            # print(f"Len Completions: {len(completions)}")
             scores = prm.score(prompts, completions) # |prompts| amount of scores
             # print(f"\nScores: {scores}\n")
             # time.sleep(2)
@@ -230,12 +230,19 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, prm: PRM, llm_targe
                 for score in scores
             ]
 
-            print(f"Scores: {scores}")
-            print(f"Agg Scores: {agg_scores}")
-            print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
-            print(f"Length of Agg Scores: {len(agg_scores)}")
-            print(f"Len (agg scores[0]): {len(agg_scores[0])}")
-            assert False
+            # print(f"Scores: {scores}")
+            # print(f"Agg Scores: {agg_scores}")
+            # print(f"Scores: {len(scores)}, Len (Scores[0]): {len(scores[0])}")
+            # print(f"Length of Agg Scores: {len(agg_scores)}")
+            # print(f"Len (agg scores[0]): {len(agg_scores[0])}")
+            # assert False
+            """
+            Scores: [[[1.0, 1.0, 0.9609375]], [[1.0, 1.0, 0.99609375]], [[0.1640625, 0.2021484375]], [[0.6796875, 0.99609375]], [[0.99609375, 1.0, 0.953125]], [[1.0, 1.0, 0.98828125]], [[0.99609375, 1.0, 0.97265625]], [[0.99609375, 1.0, 0.95703125]]]
+            Agg Scores: [[0.9609375], [0.99609375], [0.2021484375], [0.99609375], [0.953125], [0.98828125], [0.97265625], [0.95703125]]
+            Scores: 8, Len (Scores[0]): 1
+            Length of Agg Scores: 8
+            Len (agg scores[0]): 1
+            """
             # tilted_scores = agg_scores[0]
             # tilted_scores = tilted_scores - torch.max(tilted_scores)
             # probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores)) #p(x)*exp(1/beta r(x))
