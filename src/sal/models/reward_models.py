@@ -313,3 +313,53 @@ def load_prm(config: Config) -> PRM:
         return RLHFFlow(config)
 
     raise NotImplementedError(f"PRM {config.prm_path} not implemented")
+
+class MergedModel(torch.nn.Module):
+    def __init__(self, tokenizer, base_model, reward_model, causal_model, beginning_offset, total_tokens, device):
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.base_model = base_model.to(device)
+        self.reward_model = reward_model
+        self.causal_model = causal_model
+        self.lm_head = causal_model.lm_head.to(device)
+        self.reward_score = reward_model.score.to(device)
+        self.beginning_offset = beginning_offset
+        self.total_tokens = total_tokens
+        self.device = device
+        
+    def get_log_probs(self, lm_outputs, input_ids):
+        probs = []
+        lm_prob_dist = F.softmax(lm_outputs, dim=-1)
+        for offset in range(self.beginning_offset, self.beginning_offset+self.total_tokens):
+            prob = lm_prob_dist[0,-offset-1,input_ids[0][-offset]].item()
+            probs.append(prob)
+        return probs
+    
+    def get_reward_scores(self, input_ids, base_outputs):
+        reward_outputs = self.reward_score(base_outputs[0])
+        step_sep_id = self.tokenizer.encode("<extra_0>")[0]
+        token_masks = (input_ids == step_sep_id)
+        logits = reward_outputs[0]
+        probabilities = F.softmax(logits, dim=-1)
+        probabilities = probabilities * token_masks.unsqueeze(-1) # bs, seq_len, num_labels
+
+        all_scores_res = []
+        for i in range(probabilities.size(0)):
+            sample = probabilities[i] # seq_len, num_labels
+            positive_probs = sample[sample != 0].view(-1, 2)[:, 1] # valid_tokens, num_labels
+            non_zero_elements_list = positive_probs.cpu().tolist()
+            all_scores_res.append(non_zero_elements_list)   
+        return all_scores_res
+    
+    def forward(self, input_ids):
+        base_outputs = self.base_model(input_ids)
+        lm_outputs = self.lm_head(base_outputs[0])
+        reward_outputs = self.reward_score(base_outputs[0])
+        return base_outputs, lm_outputs, reward_outputs
+
+    def run_merged_model(self, input_ids):
+        base_outputs = self.base_model(input_ids)
+        lm_outputs = self.lm_head(base_outputs[0])
+        rewards = self.get_reward_scores(input_ids, base_outputs)
+        probs = self.get_log_probs(lm_outputs, input_ids)
+        return rewards, probs

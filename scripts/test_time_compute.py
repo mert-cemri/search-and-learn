@@ -19,11 +19,12 @@ import torch
 from vllm import LLM
 
 from sal.config import Config
-from sal.models.reward_models import load_prm
+from sal.models.reward_models import load_prm, MergedModel
 from sal.search import beam_search, best_of_n, dvts, speculative_beam_search, speculative_importance_search
 from sal.utils.data import get_dataset, save_dataset
 from sal.utils.parser import H4ArgumentParser
 from sal.utils.score import score
+
 
 import time
 
@@ -94,6 +95,30 @@ def main():
         max_model_len=config.max_target_model_len,
         )
 
+    if config.approach == "speculative_beam_search_merged_models":
+        from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification, AutoTokenizer, AutoModel
+        base_model_path = "../models_merged/Qwen2--qwen_7b_merged"
+        reward_model_name = "Qwen/Qwen2.5-Math-PRM-7B"
+        causal_model_name = "Qwen/Qwen2.5-7B-Instruct"
+
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+        # Load model (automatically detects and uses safetensors)
+        base_model = AutoModel.from_pretrained(base_model_path).eval()
+
+        reward_model = AutoModel.from_pretrained(
+            reward_model_name, 
+            trust_remote_code=True,
+        ).eval()
+        causal_model = AutoModelForCausalLM.from_pretrained(
+            causal_model_name,
+        ).eval()
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        merged_model_reward = MergedModel(tokenizer=tokenizer, base_model=base_model, reward_model=reward_model, 
+                           causal_model=causal_model, beginning_offset=9, total_tokens=29, device=device)
+
+
     start = time.time()
 
     if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
@@ -103,6 +128,15 @@ def main():
             batch_size=config.search_batch_size,
             fn_kwargs={"config": config, "llm": llm, "prm": prm, "llm_target": llm_target},
             desc="Running (speculative) search",
+            load_from_cache_file=False,
+        )
+    elif config.approach == "speculative_beam_search_merged_models":
+        dataset = dataset.map(
+            approach_fn,
+            batched=True,
+            batch_size=config.search_batch_size,
+            fn_kwargs={"config": config, "llm": llm, "prm": prm, "merged_model_reward": merged_model_reward},
+            desc="Running (speculative) search (with merged models)",
             load_from_cache_file=False,
         )
     else:

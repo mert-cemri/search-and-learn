@@ -4,3 +4,4 @@ from .diverse_verifier_tree_search import dvts
 from .speculative_beam_search import beam_search as speculative_beam_search
 from .beam_search import beam_search
 from .speculative_importance_search import beam_search as speculative_importance_search
+from .speculative_beam_search_merged_models import beam_search as speculative_beam_search_merged_models
