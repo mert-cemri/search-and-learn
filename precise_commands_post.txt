@@ -9,10 +9,11 @@ python scripts/test_time_compute.py recipes/Speculative-Llama-1B-Qwen-7B/specula
 
 python scripts/test_time_compute.py recipes/Speculative-Llama-1B-Qwen-7B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=Qwen/Qwen2.5-7B-Instruct --rm_regularizer=1.5 --n=4 --num_iterations=20 --dataset_end=20 --period=0
 
+python scripts/test_time_compute.py recipes/Speculative-Llama-1B-Qwen-7B/speculative_beam_search.yaml --model_path=AMead10/Llama-3.2-1B-Instruct-AWQ --target_model_path=Qwen/Qwen2.5-7B-Instruct --rm_regularizer=1.5 --n=4 --num_iterations=10 --dataset_end=20 --period=0
 
 
-
-
+python scripts/test_time_compute.py recipes/Speculative-Llama-1B-Qwen-7B/beam_search.yaml --model_path=Qwen/Qwen2.5-7B-Instruct --n=4 --gpu_memory_utilization=0.5 --dataset_end=20 --num_iterations=20
+213.92
 
 python scripts/test_time_compute.py recipes/Llama-3.2-1B-Instruct/beam_search.yaml --model_path=Qwen/Qwen2.5-7B-Instruct --n=4 --gpu_memory_utilization=0.5 --dataset_end=20 --num_iterations=20
 

@@ -272,7 +272,17 @@ def _beam_search(batch_of_prompts, config: Config, llm: LLM, merged_model= None,
             agg_scores_tensor = torch.Tensor(agg_scores)
             assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
             og_tilted_scores = agg_scores_tensor.flatten() + config.rm_regularizer*cum_probs_tensor.flatten()
-            print(f"Og Tilted Scores: {og_tilted_scores}")
+            # print(f"Og Tilted Scores: {og_tilted_scores}")
+            """
+            Og Tilted Scores: tensor([0.6357])                            
+            Og Tilted Scores: tensor([0.5978])                                                              
+            Og Tilted Scores: tensor([0.8183, 0.7954, 0.5793, 0.8048])                                                     
+            Og Tilted Scores: tensor([0.4295, 0.5151, 0.6864, 0.3544])                                          
+            Og Tilted Scores: tensor([0.7178, 0.5862, 0.7027, 0.6879])                                    
+            Og Tilted Scores: tensor([0.6348, 0.4643, 0.5237])
+            Og Tilted Scores: tensor([0.4601, 0.5366, 0.4544, 0.6572])                   
+            Og Tilted Scores: tensor([0.5093, 0.4245, 0.5977])
+            """
             tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
             # print(f"Tilted Scores: {tilted_scores}")
             # assert False

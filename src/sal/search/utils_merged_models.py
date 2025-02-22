@@ -142,82 +142,81 @@ def generate_k_steps(
         # assert False
         # For speculative decoding, batch process all beams through target model
         if speculative:
-            # # Collect all prompts with generated text for batch processing
-            # verification_prompts = [
-            #     gen_result.initial_prompt + output.outputs[0].text 
-            #     for gen_result, output in zip(current_gen, llm_outputs)
-            # ]
-            
-            input_ids_batch = []
-            for i, output in enumerate(llm_outputs):
-                messages = [
-                    {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
-                    {"role": "user", "content": current_gen[i].question},
-                    {"role": "assistant", "content": current_gen[i].question+output.outputs[0].text+" <extra_0>"},
-                ]
-                conversation_str = tokenizer.apply_chat_template(
-                    messages, 
-                    tokenize=False, 
-                    add_generation_prompt=False
-                )
-                input_ids = tokenizer.encode(
-                            conversation_str, 
-                            return_tensors="pt"
-                            )
-                input_ids_batch.append(input_ids)
-
-            input_ids_batch = torch.cat(input_ids_batch, dim=0).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-
-            reward_score, prob = merged_model.run_merged_model(input_ids_batch, tokenizer)
-            reward_score = reward_score.detach().cpu()
-            
-            # # Get logprobs from target model in one batch
-            # verification_outputs = llm_target.generate(
-            #     verification_prompts,
-            #     verification_sampling_params, 
-            #     use_tqdm=False
-            # )
-            
-            # Pre-compute token ids and logprobs for each beam
-            # tokenizer = llm_target.get_tokenizer()
-            for gen_result, output in zip(current_gen, llm_outputs):
-                gen_text = output.outputs[0].text
-                new_text = gen_result.initial_prompt + gen_text
+            # Process in smaller batches to reduce memory usage
+            batch_size = 2  # Adjust this based on your GPU memory
+            for i in range(0, len(current_gen), batch_size):
+                batch_slice = slice(i, min(i + batch_size, len(current_gen)))
                 
-                # prob = prob.detach().cpu()
-                # del input_ids
-                # torch.cuda.empty_cache() 
-                # gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
+                input_ids_batch = []
+                max_length = 0
                 
-                # # Calculate log probs for each token in generated text
-                # log_probs = []
-                # prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
+                # First pass to get max length for current batch
+                for j in range(*batch_slice.indices(len(current_gen))):
+                    messages = [
+                        {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
+                        {"role": "user", "content": current_gen[j].question},
+                        {"role": "assistant", "content": current_gen[j].question + llm_outputs[j].outputs[0].text + " <extra_0>"},
+                    ]
+                    conversation_str = tokenizer.apply_chat_template(
+                        messages, 
+                        tokenize=False, 
+                        add_generation_prompt=False
+                    )
+                    input_ids = tokenizer.encode(
+                        conversation_str, 
+                        return_tensors="pt"
+                    )
+                    max_length = max(max_length, input_ids.shape[1])
+                    del input_ids  # Free memory immediately
                 
-                # for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
-                #     if token_id in token_logprobs:
-                #         log_probs.append(token_logprobs[token_id].logprob)
-                #     else:
-                #         log_probs.append(-10)
-                        
-                # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
-                gen_result.cum_prob = np.sum(np.log(np.array(prob)))
-                # print(f"Cum Prob: {prob}")
-                # print(f"Reward Score: {reward_score}")
-                gen_result.prm_score = reward_score #returns however many <extra_0> tokens are there, for p. [0][0] indexes the score float.
-                gen_result.first_step_text = gen_text
-                gen_result.first_step_stop_reason = output.outputs[0].stop_reason
-                # if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
-                #     gen_result.first_step_stop_reason = "EOS"
+                # Second pass to create padded batch
+                for j in range(*batch_slice.indices(len(current_gen))):
+                    messages = [
+                        {"role": "system", "content": "Please reason step by step, and put your final answer within \\boxed{}."},
+                        {"role": "user", "content": current_gen[j].question},
+                        {"role": "assistant", "content": current_gen[j].question + llm_outputs[j].outputs[0].text + " <extra_0>"},
+                    ]
+                    conversation_str = tokenizer.apply_chat_template(
+                        messages, 
+                        tokenize=False, 
+                        add_generation_prompt=False
+                    )
+                    input_ids = tokenizer.encode(
+                        conversation_str, 
+                        return_tensors="pt"
+                    )
+                    padded_input_ids = torch.nn.functional.pad(
+                        input_ids, 
+                        (0, max_length - input_ids.shape[1]), 
+                        value=tokenizer.pad_token_id
+                    )
+                    input_ids_batch.append(padded_input_ids)
+                    del input_ids  # Free memory immediately
 
-                gen_result.lookahead_text = gen_result.lookahead_text + gen_text
-                gen_result.stop_reason = output.outputs[0].stop_reason
-                # print(f"\n ******* Gen Token Length: {len(gen_token_ids)} Stop reason: {gen_result.stop_reason} ********** \n")
-                # time.sleep(2)
-                # if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
-                #     gen_result.stop_reason = "EOS"
-
-                beam_index += 1
-            
+                input_ids_batch = torch.cat(input_ids_batch, dim=0).to(merged_model.device)
+                
+                # Run model on current batch
+                reward_score_batch, prob_batch = merged_model.run_merged_model(input_ids_batch, tokenizer)
+                reward_score_batch = reward_score_batch.detach().cpu()
+                prob_batch = prob_batch.detach().cpu()
+                
+                # Process results for current batch
+                for j, idx in enumerate(range(*batch_slice.indices(len(current_gen)))):
+                    gen_result = current_gen[idx]
+                    gen_text = llm_outputs[idx].outputs[0].text
+                    
+                    gen_result.cum_prob = np.sum(np.log(prob_batch[j].numpy()))
+                    gen_result.prm_score = [[reward_score_batch[j].item()]]
+                    gen_result.first_step_text = gen_text
+                    gen_result.first_step_stop_reason = llm_outputs[idx].outputs[0].stop_reason
+                    gen_result.lookahead_text = gen_result.lookahead_text + gen_text
+                    gen_result.stop_reason = llm_outputs[idx].outputs[0].stop_reason
+                
+                # Clean up GPU memory
+                del input_ids_batch
+                del reward_score_batch
+                del prob_batch
+                torch.cuda.empty_cache()
         else:
             tokenizer = llm.get_tokenizer()
             for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
