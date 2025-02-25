@@ -5,3 +5,4 @@ from .speculative_beam_search import beam_search as speculative_beam_search
 from .beam_search import beam_search
 from .speculative_importance_search import beam_search as speculative_importance_search
 from .speculative_beam_search_merged_models import beam_search as speculative_beam_search_merged_models
+from .online_speculative_beam_search import beam_search as online_speculative_beam_search
