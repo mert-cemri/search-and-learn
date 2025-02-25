@@ -23,7 +23,7 @@ from vllm import LLM, SamplingParams
 from sal.config import Config
 from sal.models.reward_models import PRM
 
-from .utils import Beam, build_conv, generate_k_steps, last, generate_k_steps_from_next_texts
+from .online_utils import Beam, build_conv, generate_k_steps, last, generate_k_steps_from_next_texts
 
 logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
@@ -32,7 +32,7 @@ import torch
 
 import time
 
-def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = None) -> list[Beam]:
+def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_tokenizer=None, target_tokenizer=None, prm_tokenizer=None) -> list[Beam]:
 
     if llm_target is None:
         llm_target = llm
@@ -47,67 +47,61 @@ def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = 
         logprobs=1
     )
 
-    draft_responses = draft_client.completions.create(
-                model=config.draft_model_name_or_path.split("/")[-1],
-                prompt=batch_of_prompts,
-                temperature=config.temperature,
-                top_p=config.top_p,
-                max_tokens=config.max_tokens_per_call,
-                stop=[config.step_word],
-            ).choices
-    draft_responses = sorted(draft_responses, key=lambda x: int(x.index))
-    # Evaluate draft responses with PRM
-    full_responses = [''.join(r[0] for r in prev_resp) + new_resp.text
-                for (_, _, prev_resp), new_resp in zip(current_prompts, draft_responses)]
-    processed_data = [
-        prepare_input(p, full_resp, tokenizer=prm_tokenizer, step_token=args.step_word) 
-        for p, full_resp in zip(current_problems, full_responses)
-    ]
-    input_ids, steps, reward_flags = zip(*processed_data)
-    rewards = prm_client.embeddings.create(
-        input=input_ids,
-        model=args.prm_name_or_path.split("/")[-1],
-    )
-    step_rewards = derive_step_rewards_vllm(rewards, reward_flags) # list[list]
+    
+    
+    # # Evaluate draft responses with PRM
+    # full_responses = [''.join(r[0] for r in prev_resp) + new_resp.text
+    #             for (_, _, prev_resp), new_resp in zip(current_prompts, draft_responses)]
+    # processed_data = [
+    #     prepare_input(p, full_resp, tokenizer=prm_tokenizer, step_token=args.step_word) 
+    #     for p, full_resp in zip(current_problems, full_responses)
+    # ]
+    # input_ids, steps, reward_flags = zip(*processed_data)
+    # rewards = prm_client.embeddings.create(
+    #     input=input_ids,
+    #     model=args.prm_name_or_path.split("/")[-1],
+    # )
+    # step_rewards = derive_step_rewards_vllm(rewards, reward_flags) # list[list]
     # Split prompts based on step_reward
-    good_prompts = []
-    bad_prompts = []
-    for (orig_idx, prompt, prev_responses), draft_response, step_reward in zip(current_prompts, draft_responses, step_rewards):
-        all_rewards[orig_idx].append(round(step_reward[-1], 6))
-        if step_reward[-1] >= args.prm_threshold:
-            good_prompts.append((orig_idx, prompt, prev_responses, draft_response, True))  # True means using draft model
-        else:
-            draft_response_text = draft_response.text + args.step_word
-            token_counts[orig_idx] = (
-                token_counts[orig_idx][0], 
-                token_counts[orig_idx][1], 
-                token_counts[orig_idx][2]+len(draft_tokenizer.encode(draft_response_text))
-            )
-            bad_prompts.append((orig_idx, prompt, prev_responses))
+    # good_prompts = []
+    # bad_prompts = []
+    # for (orig_idx, prompt, prev_responses), draft_response, step_reward in zip(current_prompts, draft_responses, step_rewards):
+    #     all_rewards[orig_idx].append(round(step_reward[-1], 6))
+    #     if step_reward[-1] >= args.prm_threshold:
+    #         good_prompts.append((orig_idx, prompt, prev_responses, draft_response, True))  # True means using draft model
+    #     else:
+    #         draft_response_text = draft_response.text + args.step_word
+    #         token_counts[orig_idx] = (
+    #             token_counts[orig_idx][0], 
+    #             token_counts[orig_idx][1], 
+    #             token_counts[orig_idx][2]+len(draft_tokenizer.encode(draft_response_text))
+    #         )
+    #         bad_prompts.append((orig_idx, prompt, prev_responses))
 
-    # Generate using target model for bad prompts
-    if bad_prompts:
-        batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
-        target_responses = target_client.completions.create(
-            model=args.target_model_name_or_path.split("/")[-1],
-            prompt=batch_prompts,
-            temperature=args.temperature,
-            top_p=args.top_p,
-            max_tokens=args.max_tokens_per_call, 
-            n=1,
-            stop=[args.step_word],
-        ).choices
-        target_responses = sorted(target_responses, key=lambda x: int(x.index))
+    # # Generate using target model for bad prompts
+    # if bad_prompts:
+    #     batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
+    #     target_responses = target_client.completions.create(
+    #         model=args.target_model_name_or_path.split("/")[-1],
+    #         prompt=batch_prompts,
+    #         temperature=args.temperature,
+    #         top_p=args.top_p,
+    #         max_tokens=args.max_tokens_per_call, 
+    #         n=1,
+    #         stop=[args.step_word],
+    #     ).choices
+    #     target_responses = sorted(target_responses, key=lambda x: int(x.index))
         
-        # Add target model responses to good_prompts
-        for (orig_idx, prompt, prev_responses), target_response in zip(bad_prompts, target_responses):
-            good_prompts.append((orig_idx, prompt, prev_responses, target_response, False))  # False means using target model
+    #     # Add target model responses to good_prompts
+    #     for (orig_idx, prompt, prev_responses), target_response in zip(bad_prompts, target_responses):
+    #         good_prompts.append((orig_idx, prompt, prev_responses, target_response, False))  # False means using target model
 
 
     beams: list[Beam] = []
     for prompt in batch_of_prompts:
         i = 0
         # for i in range(config.n):
+
         beams.append(
             Beam(
                 prompt=prompt,
@@ -155,7 +149,7 @@ def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = 
         continue_final_message = i > 0
         add_generation_prompt = i == 0
 
-        tokenizer = llm.get_tokenizer()
+        tokenizer = draft_tokenizer
         if config.custom_chat_template is not None:
             tokenizer.chat_template = config.custom_chat_template
         templated_convs = tokenizer.apply_chat_template(
@@ -165,16 +159,15 @@ def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = 
             tokenize=False,
         )
         lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
-        
 
         if config.period == 0:
             gen_results = generate_k_steps(
-                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
             ) #1 (N/M) thing in it, with M different next_texts in each of them
         else:
             if skip_sampling % config.period == 0:
                 gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens
+                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
                 ) #1 (N/M) thing in it, with M different next_texts in each of them
                 prev_next_texts = gen_results[0].next_texts
                 gen_results = generate_k_steps_from_next_texts(
@@ -182,7 +175,7 @@ def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = 
                 )
             else:
                 gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
                 ) #1 (N/M) thing in it, with M different next_texts in each of them
         skip_sampling += 1
 
@@ -298,13 +291,13 @@ def _beam_search(batch_of_prompts, config, draft_client, prm: PRM, llm_target = 
     return completed_beams
 
 
-def beam_search(examples, config, llm=None, prm=None, llm_target=None):
+def beam_search(examples, config, llm=None, prm=None, llm_target=None, draft_tokenizer=None, target_tokenizer=None, prm_tokenizer=None):
     # try:
         problems = examples["problem"]
         beam_results = []
         start_time = time.time()
         # try:
-        beam_results = _beam_search(problems, config, llm, prm, llm_target)
+        beam_results = _beam_search(problems, config, llm, prm, llm_target, draft_tokenizer, target_tokenizer, prm_tokenizer)
         # except Exception as e:
         #     print(f"\n\n *** An error occurred while running beam search: {e} *** \n\n")
         end_time = time.time()

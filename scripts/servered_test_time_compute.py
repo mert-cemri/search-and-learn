@@ -174,7 +174,7 @@ def main():
             approach_fn,
             batched=True,
             batch_size=config.search_batch_size,
-            fn_kwargs={"config": config, "llm": draft_client, "prm": prm_client, "llm_target": target_client},
+            fn_kwargs={"config": config, "llm": draft_client, "prm": prm_client, "llm_target": target_client, "draft_tokenizer": draft_tokenizer, "target_tokenizer": target_tokenizer, "prm_tokenizer": prm_tokenizer},
             desc="Running (speculative) search",
             load_from_cache_file=False,
         )
