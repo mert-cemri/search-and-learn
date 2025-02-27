@@ -240,6 +240,13 @@ def generate_k_steps(
                 input=input_ids,
             )
             step_rewards = derive_step_rewards_vllm(rewards, reward_flags)
+
+            target_model_logits = llm_target.embeddings.create(
+                model=config.target_model_path_rsd.split("/")[-1],
+                input=input_ids,
+            )
+            # target_likelihoods = derive_step_rewards_vllm(target_model_logits, reward_flags)
+
             # batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
             # target_responses = target_client.completions.create(
             #     model=args.target_model_name_or_path.split("/")[-1],
@@ -270,6 +277,7 @@ def generate_k_steps(
                 # Calculate log probs for each token in generated text
                 # log_probs = []
                 # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
+                # gen_result.cum_prob = config.rm_regularizer * step_rewards[beam_index][-1] + target_likelihoods
                 gen_result.cum_prob = step_rewards[beam_index][-1]
                 # print(f"Cumulative probability (Online serving score): {gen_result.cum_prob}")
                 gen_result.first_step_text = gen_text
