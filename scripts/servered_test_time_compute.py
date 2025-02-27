@@ -65,13 +65,13 @@ def setup(args):
     openai_api_key = "EMPTY"
     draft_client = OpenAI(
         api_key=openai_api_key,
-        base_url=args.draft_model_path_rsd,
+        base_url=args.draft_model_ip_address,
     )
     draft_tokenizer = AutoTokenizer.from_pretrained(args.draft_model_path_rsd, trust_remote_code=True)
 
     target_client = OpenAI(
         api_key=openai_api_key,
-        base_url=args.target_model_path_rsd,
+        base_url=args.target_model_ip_address,
     )
     target_tokenizer = AutoTokenizer.from_pretrained(args.target_model_path_rsd, trust_remote_code=True)
 
@@ -125,14 +125,14 @@ def main():
 
     
     # if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
-    #     llm_target = LLM(
-    #     model=config.target_model_path,
-    #     gpu_memory_utilization=config.target_gpu_memory_utilization,
-    #     enable_prefix_caching=False,
-    #     seed=config.seed,
-    #     tensor_parallel_size=num_gpus,
-    #     max_model_len=config.max_target_model_len,
-    #     )
+        # llm_target = LLM(
+        # model=config.target_model_path,
+        # gpu_memory_utilization=config.target_gpu_memory_utilization,
+        # enable_prefix_caching=False,
+        # seed=config.seed,
+        # tensor_parallel_size=num_gpus,
+        # max_model_len=config.max_target_model_len,
+        # )
 
     # if config.approach == "speculative_beam_search_merged_models":
     #     from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification, AutoTokenizer, AutoModel

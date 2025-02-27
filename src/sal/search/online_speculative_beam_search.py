@@ -29,6 +29,7 @@ logger = logging.getLogger()
 from sal.utils.score import aggregate_scores
 
 import torch
+import gc
 
 import time
 
@@ -116,6 +117,7 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
                 best_scores=[],
                 all_scores=[],
                 previous_text=None,
+                step_rewards=[],
                 completion_tokens=0,
             )
         )
@@ -125,146 +127,187 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
     verify_flag = -1
     skip_sampling = 0
     for i in tqdm(range(config.num_iterations), desc="Speculative beam search iterations"):
-        # print(i)
-        # assert False
-        if i == 0:
-            active_beams = [b for b in beams if not b.pruned]
-        else:
-            active_beams = [b for b in active_beams if not b.pruned]
-
-        if i == config.num_iterations - 1:
-            # Last iteration, generate to EOS
-            sampling_params = SamplingParams(
-                temperature=config.temperature,
-                max_tokens=config.max_tokens,
-                top_p=config.top_p,
-                n=1,
-            )
-
-        convs = [
-            build_conv(b.prompt, b.current_text, config.system_prompt)
-            for b in active_beams
-        ]
-
-        continue_final_message = i > 0
-        add_generation_prompt = i == 0
-
-        tokenizer = draft_tokenizer
-        if config.custom_chat_template is not None:
-            tokenizer.chat_template = config.custom_chat_template
-        templated_convs = tokenizer.apply_chat_template(
-            convs,
-            add_generation_prompt=add_generation_prompt,
-            continue_final_message=continue_final_message,
-            tokenize=False,
-        )
-        lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
-
-        if config.period == 0:
-            gen_results = generate_k_steps(
-                templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
-            ) #1 (N/M) thing in it, with M different next_texts in each of them
-        else:
-            if skip_sampling % config.period == 0:
-                gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
-                ) #1 (N/M) thing in it, with M different next_texts in each of them
-                prev_next_texts = gen_results[0].next_texts
-                gen_results = generate_k_steps_from_next_texts(
-                    templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
-                )
+        try:
+            # print(i)
+            # assert False
+            if i == 0:
+                active_beams = [b for b in beams if not b.pruned]
             else:
-                gen_results = generate_k_steps(
-                    templated_convs, lookahead, llm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
-                ) #1 (N/M) thing in it, with M different next_texts in each of them
-        skip_sampling += 1
+                active_beams = [b for b in active_beams if not b.pruned]
 
-        for beam, gen_result in zip(active_beams, gen_results, strict=True): # runs for N/M (1) times
-            beam.next_texts = gen_result.next_texts #new candidate beams, n amount
-            beam.stop_reasons = gen_result.stop_reasons
-            beam.lookahead_texts = gen_result.lookahead_texts
-            beam.completion_tokens += gen_result.completion_tokens
-            beam.cum_probs = gen_result.cum_probs #list of probs of branches (beams), n amount
-            # beam.current_text += beam.next_texts[0] #CHANGE
-            # beam.history.append(beam.next_texts[0]) #CHANGE
+            if i == config.num_iterations - 1:
+                # Last iteration, generate to EOS
+                sampling_params = SamplingParams(
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    top_p=config.top_p,
+                    n=1,
+                )
 
-            if (
-                beam.stop_reasons[0] == "EOS"
-                # or beam.stop_reasons[0] == "length"
-                or beam.next_texts[0] == ""
-                or i == config.num_iterations - 1
-            ):
-                beam.completed = True
-                completed_beams.append(beam)
-
-            tilted_scores = torch.zeros(config.n) # beam_width (M) amount of these
-            prompts, completions = [], []
-            cum_probs = []
-            for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
-                next_text = beam.next_texts[branch_index]
-                # print(f"Branch Index: {branch_index}, Next Text: {next_text}")
-                cum_prob = beam.cum_probs[branch_index]
-                candidate = beam.current_text + next_text
-                prompts.append(beam.prompt)
-                completions.append([candidate])
-                cum_probs.append(cum_prob)
-
-            scores = prm.score(prompts, completions) # |prompts| amount of scores
-            # print(f"\nScores: {scores}\n")
-            # time.sleep(2)
-            agg_scores = [
-                [aggregate_scores(s, config.agg_strategy) for s in score]
-                for score in scores
+            convs = [
+                build_conv(b.prompt, b.current_text, config.system_prompt)
+                for b in active_beams
             ]
 
-            """
-            Scores: [[[1.0, 1.0, 0.9609375]], [[1.0, 1.0, 0.99609375]], [[0.1640625, 0.2021484375]], [[0.6796875, 0.99609375]], [[0.99609375, 1.0, 0.953125]], [[1.0, 1.0, 0.98828125]], [[0.99609375, 1.0, 0.97265625]], [[0.99609375, 1.0, 0.95703125]]]
-            Agg Scores: [[0.9609375], [0.99609375], [0.2021484375], [0.99609375], [0.953125], [0.98828125], [0.97265625], [0.95703125]]
-            Scores: 8, Len (Scores[0]): 1
-            Length of Agg Scores: 8
-            Len (agg scores[0]): 1
-            """
+            
 
-            # Filter duplicate active beams
+            continue_final_message = i > 0
+            add_generation_prompt = i == 0
 
-            if config.filter_duplicates:
-                # Create a dictionary to filter duplicates and retain order
-                unique_beam_dict = {}
-                for i, candidate in enumerate(beam.next_texts):
-                    if candidate not in unique_beam_dict:
-                        unique_beam_dict[candidate] = (
-                            i  # Map the unique text to its index
-                        )
-                agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
-                cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
+            tokenizer = draft_tokenizer
+            if config.custom_chat_template is not None:
+                tokenizer.chat_template = config.custom_chat_template
+            templated_convs = tokenizer.apply_chat_template(
+                convs,
+                add_generation_prompt=add_generation_prompt,
+                continue_final_message=continue_final_message,
+                tokenize=False,
+            )
+            lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
 
-            cum_probs_tensor = torch.Tensor(cum_probs)
-            agg_scores_tensor = torch.Tensor(agg_scores)
-            assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
-            og_tilted_scores = agg_scores_tensor.flatten() + config.rm_regularizer*cum_probs_tensor.flatten()
-            tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
-            probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores))
+            len_prompt_tokens = len(draft_tokenizer.encode(templated_convs[0]))
+            available_tokens = max(0, config.max_context_length - len_prompt_tokens)
+            # Update sampling params for this specific prompt
+            sampling_params.max_tokens = min(config.max_tokens, available_tokens)
 
-            try:
-                chosen_index = torch.multinomial(probs, num_samples=1)
-            except:
-                print(f"\n Tilted Scores: {tilted_scores}")
-                print(f"Probs: {probs}")
-                chosen_index = 0
-            beam.current_text += beam.next_texts[chosen_index]
-
-            if beam.all_scores:
-                beam.all_scores.append(og_tilted_scores[chosen_index].item())
+            if config.period == 0:
+                gen_results = generate_k_steps(
+                    templated_convs, lookahead, llm, prm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
+                ) #1 (N/M) thing in it, with M different next_texts in each of them
             else:
-                beam.all_scores = [og_tilted_scores[chosen_index].item()]
-            beam.history.append(beam.next_texts[chosen_index])
+                if skip_sampling % config.period == 0:
+                    gen_results = generate_k_steps(
+                        templated_convs, lookahead, llm, prm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=False, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
+                    ) #1 (N/M) thing in it, with M different next_texts in each of them
+                    prev_next_texts = gen_results[0].next_texts
+                    gen_results = generate_k_steps_from_next_texts(
+                        templated_convs, prev_next_texts, lookahead, llm, sampling_params, beam_width=1, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens
+                    )
+                else:
+                    gen_results = generate_k_steps(
+                        templated_convs, lookahead, llm, prm, sampling_params, beam_width=config.n, llm_target=llm_target, speculative=True, max_tokens = config.max_tokens, config = config, draft_tokenizer=draft_tokenizer, target_tokenizer=target_tokenizer, prm_tokenizer=prm_tokenizer
+                    ) #1 (N/M) thing in it, with M different next_texts in each of them
+            skip_sampling += 1
 
-        active_beams = [b for b in active_beams if not b.completed]
+            for beam, gen_result in zip(active_beams, gen_results, strict=True): # runs for N/M (1) times
+                beam.next_texts = gen_result.next_texts #new candidate beams, n amount
+                beam.stop_reasons = gen_result.stop_reasons
+                beam.lookahead_texts = gen_result.lookahead_texts
+                beam.completion_tokens += gen_result.completion_tokens
+                beam.cum_probs = gen_result.cum_probs #list of probs of branches (beams), n amount
+                # beam.current_text += beam.next_texts[0] #CHANGE
+                # beam.history.append(beam.next_texts[0]) #CHANGE
 
-        if len(active_beams) == 0:
-            break
+                if (
+                    beam.stop_reasons[0] == "EOS"
+                    # or beam.stop_reasons[0] == "length"
+                    or beam.next_texts[0] == ""
+                    or i == config.num_iterations - 1
+                ):
+                    beam.completed = True
+                    completed_beams.append(beam)
 
-    
+                tilted_scores = torch.zeros(config.n) # beam_width (M) amount of these
+                prompts, completions = [], []
+                cum_probs = []
+                for branch_index in range(len(beam.next_texts)): # there should be beam_width (M) amount of these
+                    next_text = beam.next_texts[branch_index]
+                    # print(f"Branch Index: {branch_index}, Next Text: {next_text}")
+                    cum_prob = beam.cum_probs[branch_index]
+                    candidate = beam.current_text + next_text
+                    prompts.append(beam.prompt)
+                    completions.append([candidate])
+                    cum_probs.append(cum_prob)
+
+                if config.rm_regularizer > 0:
+                    scores = prm.score(prompts, completions) # |prompts| amount of scores
+                    # print(f"\nScores: {scores}\n")
+                    # time.sleep(2)
+                    agg_scores = [
+                        [aggregate_scores(s, config.agg_strategy) for s in score]
+                        for score in scores
+                    ]
+                else:
+                    agg_scores = [[0] for _ in range(config.n)]   
+
+                """
+                Scores: [[[1.0, 1.0, 0.9609375]], [[1.0, 1.0, 0.99609375]], [[0.1640625, 0.2021484375]], [[0.6796875, 0.99609375]], [[0.99609375, 1.0, 0.953125]], [[1.0, 1.0, 0.98828125]], [[0.99609375, 1.0, 0.97265625]], [[0.99609375, 1.0, 0.95703125]]]
+                Agg Scores: [[0.9609375], [0.99609375], [0.2021484375], [0.99609375], [0.953125], [0.98828125], [0.97265625], [0.95703125]]
+                Scores: 8, Len (Scores[0]): 1
+                Length of Agg Scores: 8
+                Len (agg scores[0]): 1
+                """
+
+                # Filter duplicate active beams
+
+                if config.filter_duplicates:
+                    # Create a dictionary to filter duplicates and retain order
+                    unique_beam_dict = {}
+                    for i, candidate in enumerate(beam.next_texts):
+                        if candidate not in unique_beam_dict:
+                            unique_beam_dict[candidate] = (
+                                i  # Map the unique text to its index
+                            )
+                    agg_scores = [agg_scores[i] for i in unique_beam_dict.values()]
+                    cum_probs = [cum_probs[i] for i in unique_beam_dict.values()]
+
+                cum_probs_tensor = torch.Tensor(cum_probs)
+                agg_scores_tensor = torch.Tensor(agg_scores)
+                assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
+                og_tilted_scores = config.rm_regularizer*agg_scores_tensor.flatten() + cum_probs_tensor.flatten()
+
+                print(f"\n ********* OG Tilted Scores (online serving): {og_tilted_scores} ********* \n")
+                # time.sleep(2)
+
+                tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
+                probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores))
+
+                try:
+                    chosen_index = torch.multinomial(probs, num_samples=1)
+                except:
+                    print(f"\n Tilted Scores: {tilted_scores}")
+                    print(f"Probs: {probs}")
+                    chosen_index = 0
+                beam.current_text += beam.next_texts[chosen_index]
+
+                if beam.all_scores:
+                    beam.all_scores.append(og_tilted_scores[chosen_index].item())
+                else:
+                    beam.all_scores = [og_tilted_scores[chosen_index].item()]
+                beam.history.append(beam.next_texts[chosen_index])
+
+            active_beams = [b for b in active_beams if not b.completed]
+
+            if len(active_beams) == 0:
+                break
+
+            # Clear CUDA cache after each iteration
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            # Force garbage collection
+            gc.collect()
+
+            # Optional: Clear the LLM's cache if the method exists
+            if hasattr(llm, 'reset_cache'):
+                llm.reset_cache()
+            if hasattr(llm_target, 'reset_cache') and llm_target is not None:
+                llm_target.reset_cache()
+
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                gc.collect()
+                logger.warning(f"Recovered from OOM error in iteration {i}")
+                continue
+            else:
+                raise e
+
+    # Clear everything one final time after the loop
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 
     if config.sort_completed:
         completed_beams = sorted(

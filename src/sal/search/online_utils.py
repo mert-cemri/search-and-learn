@@ -51,6 +51,48 @@ def list_mean(x):
         return 0
     return np.mean(x)
 
+def derive_step_rewards(rewards, reward_flags):
+    batch_size = rewards.shape[0]
+    batch_step_rewards = []
+    for i in range(batch_size):
+        rewards_indices = torch.nonzero(reward_flags[i] == 1).view(-1)
+        step_rewards = [rewards[i][rewards_indices[j]].item() for j in range(len(rewards_indices))]
+        batch_step_rewards.append(step_rewards)
+    return batch_step_rewards
+
+def sigmoid(x):
+    return 1/(np.exp(-x) + 1)
+    
+def derive_step_rewards_vllm(raw_rewards, batch_reward_flags):
+    batch_step_rewards = []
+    for idx,data in enumerate(raw_rewards.data):
+        rewards = data.embedding
+        reward_flags = batch_reward_flags[idx]
+
+        step_rewards = [sigmoid(reward) for reward,flag in zip(rewards,reward_flags) if flag == 1]   
+        batch_step_rewards.append(step_rewards)
+    return batch_step_rewards
+
+def prepare_input(problem, response, tokenizer, step_token):
+    prompt_ids = tokenizer.encode(tokenizer.bos_token + problem + "\n")
+    response_ids = []
+    steps = []
+    reward_flags = [0] * len(prompt_ids)
+    step_token_id = tokenizer.encode(step_token)[-1]
+    for idx, step in enumerate(response.split(step_token)):
+        if step != "":
+            step_ids = tokenizer.encode(step)
+        else:
+            step_ids = []
+        step_ids += [step_token_id]
+        step = step + step_token
+        flag = [0] * len(step_ids)
+        flag[-1] = 1
+        response_ids.extend(step_ids)
+        reward_flags.extend(flag)
+        steps.append(step)
+    input_ids = prompt_ids + response_ids
+    return input_ids, steps, reward_flags
 
 @dataclass
 class Beam:
@@ -68,6 +110,7 @@ class Beam:
     completed: bool = False
     completion_tokens: int = 0
     cum_probs: list = field(default_factory=list)
+    step_rewards: list = field(default_factory=list)
 
 
 @dataclass
@@ -83,7 +126,8 @@ class GenResult:
 def generate_k_steps(
     templated_convs,
     lookahead_steps: int,
-    llm: LLM,
+    llm,
+    prm,
     sampling_params: SamplingParams,
     beam_width: int,
     llm_target = None,
@@ -130,21 +174,21 @@ def generate_k_steps(
         # print(gen_prompts[0])
         # llm_outputs = llm.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
         draft_responses = llm.completions.create(
-                model=config.draft_model_name_or_path.split("/")[-1],
-                prompt=gen_prompts,
-                temperature=config.temperature,
-                top_p=config.top_p,
-                max_tokens=config.max_tokens,
-                stop=["\n\n"],
-                n=1,
-                stream=False,
-                extra_body_params={
-                    "include_stop_str_in_output": True
-                                   }
-            ).choices
+                        model=config.draft_model_path_rsd.split("/")[-1],
+                        prompt=gen_prompts,
+                        temperature=config.temperature,
+                        top_p=config.top_p,
+                        max_tokens=config.max_tokens,
+                        stop=["\n\n"],
+                        n=1,
+                        stream=False,
+                        extra_body={
+                            "include_stop_str_in_output": True
+                                        }
+                    ).choices
         llm_outputs = sorted(draft_responses, key=lambda x: int(x.index))
 
-        print(llm_outputs)
+        # print(llm_outputs)
         
         # assert False
         # print('-------------\n')
@@ -160,73 +204,60 @@ def generate_k_steps(
         # For speculative decoding, batch process all beams through target model
         if speculative:
             # Collect all prompts with generated text for batch processing
-            verification_prompts = [
-                gen_result.initial_prompt + output.outputs[0].text 
-                for gen_result, output in zip(current_gen, llm_outputs)
-            ]
+            # verification_prompts = [
+            #     gen_result.initial_prompt + output.outputs[0].text 
+            #     for gen_result, output in zip(current_gen, llm_outputs)
+            # ]
             ######################### BEGIN HERE ############################
             processed_data = [
-                prepare_input(p, full_resp, tokenizer=prm_tokenizer, step_token=args.step_word) 
-                for p, full_resp in zip(current_problems, full_responses)
+                prepare_input(p, full_resp.text, tokenizer=prm_tokenizer, step_token="\n\n") 
+                for p, full_resp in zip(gen_prompts, llm_outputs)
             ]
             input_ids, steps, reward_flags = zip(*processed_data)
-            rewards = prm_client.embeddings.create(
+            rewards = prm.embeddings.create(
+                model=config.prm_path_rsd.split("/")[-1],
                 input=input_ids,
-                model=args.prm_name_or_path.split("/")[-1],
             )
             step_rewards = derive_step_rewards_vllm(rewards, reward_flags)
-            batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
-            target_responses = target_client.completions.create(
-                model=args.target_model_name_or_path.split("/")[-1],
-                prompt=batch_prompts,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                max_tokens=args.max_tokens_per_call, 
-                n=1,
-                stop=[args.step_word],
-            ).choices
-            target_responses = sorted(target_responses, key=lambda x: int(x.index))
+            # batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
+            # target_responses = target_client.completions.create(
+            #     model=args.target_model_name_or_path.split("/")[-1],
+            #     prompt=batch_prompts,
+            #     temperature=args.temperature,
+            #     top_p=args.top_p,
+            #     max_tokens=args.max_tokens_per_call, 
+            #     n=1,
+            #     stop=[args.step_word],
+            # ).choices
+            # target_responses = sorted(target_responses, key=lambda x: int(x.index))
             
-            # Add target model responses to good_prompts
-            for (orig_idx, prompt, prev_responses), target_response in zip(bad_prompts, target_responses):
-                good_prompts.append((orig_idx, prompt, prev_responses, target_response, False))  # False means using target model
+            # # Add target model responses to good_prompts
+            # for (orig_idx, prompt, prev_responses), target_response in zip(bad_prompts, target_responses):
+            #     good_prompts.append((orig_idx, prompt, prev_responses, target_response, False))  # False means using target model
 
 
             ######################### END HERE ############################
 
-
-
-            # Get logprobs from target model in one batch
-            verification_outputs = llm_target.generate(
-                verification_prompts,
-                verification_sampling_params, 
-                use_tqdm=False
-            )
-            
             # Pre-compute token ids and logprobs for each beam
-            tokenizer = llm_target.get_tokenizer()
-            for gen_result, output, verification_output in zip(current_gen, llm_outputs, verification_outputs):
-                gen_text = output.outputs[0].text
+            tokenizer = prm_tokenizer
+
+            for gen_result, output in zip(current_gen, llm_outputs):
+                # gen_text = output.outputs[0].text
+                gen_text = output.text
                 gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
                 
                 # Calculate log probs for each token in generated text
-                log_probs = []
-                prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
-                
-                for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
-                    if token_id in token_logprobs:
-                        log_probs.append(token_logprobs[token_id].logprob)
-                    else:
-                        log_probs.append(-10)
-                        
-                gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
+                # log_probs = []
+                # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
+                gen_result.cum_prob = step_rewards[beam_index][-1]
+                # print(f"Cumulative probability (Online serving score): {gen_result.cum_prob}")
                 gen_result.first_step_text = gen_text
-                gen_result.first_step_stop_reason = output.outputs[0].stop_reason
+                gen_result.first_step_stop_reason = output.finish_reason
                 if gen_result.first_step_stop_reason is None and len(gen_token_ids) < max_tokens:
                     gen_result.first_step_stop_reason = "EOS"
 
                 gen_result.lookahead_text = gen_result.lookahead_text + gen_text
-                gen_result.stop_reason = output.outputs[0].stop_reason
+                gen_result.stop_reason = output.finish_reason
                 # print(f"\n ******* Gen Token Length: {len(gen_token_ids)} Stop reason: {gen_result.stop_reason} ********** \n")
                 # time.sleep(2)
                 if gen_result.stop_reason is None and len(gen_token_ids) < max_tokens:
@@ -235,7 +266,7 @@ def generate_k_steps(
                 beam_index += 1
             
         else:
-            tokenizer = llm.get_tokenizer()
+            tokenizer = prm_tokenizer
             for gen_result, output in zip(current_gen, llm_outputs): # for loop is for beam_width times
                 gen_text = output.outputs[0].text
                 gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)

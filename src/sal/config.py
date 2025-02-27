@@ -75,6 +75,15 @@ class Config:
     filter_duplicates: bool = False
     sort_completed: bool = False
 
+    draft_model_path_rsd: str = "Qwen/Qwen2.5-Math-1.5B-Instruct"
+    draft_model_ip_address: str = "http://localhost:12340/v1"
+    target_model_path_rsd: str = "Qwen/Qwen2.5-Math-7B-Instruct"
+    target_model_ip_address: str = "http://localhost:12341/v1"
+    prm_ip_address_rsd: str = "http://localhost:12342/v1"
+    prm_path_rsd: str = "Skywork/Skywork-o1-Open-PRM-Qwen-2.5-1.5B"
+
+    max_context_length: int = 131072
+
     def __post_init__(self):
         if self.approach == "dvts":
             if self.n % self.beam_width != 0:

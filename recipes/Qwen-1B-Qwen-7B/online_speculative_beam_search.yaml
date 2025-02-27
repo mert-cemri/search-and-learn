@@ -1,0 +1,23 @@
+# refer to src/sal/config.py for more options
+
+filter_duplicates: true
+approach: online_speculative_beam_search
+n: 4
+search_batch_size: 1
+dataset_start: 0
+dataset_end: 100
+seed: 42
+gpu_memory_utilization: 0.10
+target_gpu_memory_utilization: 0.20
+max_model_len: 6000
+max_target_model_len: 6000
+rm_regularizer: 1
+period: 0
+max_tokens: 1024
+max_context_length: 4092
+draft_model_path_rsd: Qwen/Qwen2.5-Math-1.5B-Instruct
+draft_model_ip_address: http://localhost:12340/v1
+target_model_path_rsd: Qwen/Qwen2.5-Math-7B-Instruct
+target_model_ip_address: http://localhost:12341/v1
+prm_ip_address_rsd: http://localhost:12342/v1
+prm_path_rsd: Skywork/Skywork-o1-Open-PRM-Qwen-2.5-1.5B

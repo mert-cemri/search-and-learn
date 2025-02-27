@@ -4,7 +4,7 @@ hostname --ip-address
 MODEL="Qwen/Qwen2.5-Math-1.5B-Instruct"
 MODEL_NAME="Qwen2.5-Math-1.5B-Instruct"
 
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 python -m vllm.entrypoints.openai.api_server \
         --model $MODEL \
         --served-model-name $MODEL_NAME \
@@ -14,4 +14,4 @@ python -m vllm.entrypoints.openai.api_server \
         --trust-remote-code \
         --enforce-eager \
         --enable_prefix_caching \
-        --gpu_memory_utilization 0.95
+        --gpu_memory_utilization 0.5
