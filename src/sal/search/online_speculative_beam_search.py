@@ -165,10 +165,23 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
             )
             lookahead = 0 if i == config.num_iterations - 1 else config.lookahead
 
-            len_prompt_tokens = len(draft_tokenizer.encode(templated_convs[0]))
-            available_tokens = max(0, config.max_context_length - len_prompt_tokens)
-            # Update sampling params for this specific prompt
-            sampling_params.max_tokens = min(config.max_tokens, available_tokens)
+            # len_prompt_tokens = len(draft_tokenizer.encode(templated_convs[0]))
+            # available_tokens = max(0, config.max_context_length - len_prompt_tokens)
+            # print(f"Available tokens: {available_tokens}")
+            # # Update sampling params for this specific prompt
+            # sampling_params.max_tokens = min(config.max_tokens, available_tokens)
+
+            # len_prompt_tokens = min([len(draft_tokenizer.encode(templated_convs[i])) for i in range(len(templated_convs))])
+            # available_tokens = max(0, config.max_context_length - len_prompt_tokens)
+            # print(f"Available tokens: {available_tokens}")
+            # # Update sampling params for this specific prompt
+            # sampling_params.max_tokens = min(config.max_tokens, available_tokens)
+            # if sampling_params.max_tokens == 0:
+            #     # print(f"Available tokens: {available_tokens}")
+            #     # print(f"Max tokens: {config.max_tokens}")
+            #     print(f"Prompt tokens: {len_prompt_tokens}")
+            #     print(f"Max context length: {config.max_context_length}")
+            #     break
 
             if config.period == 0:
                 gen_results = generate_k_steps(

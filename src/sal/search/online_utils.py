@@ -136,6 +136,7 @@ def generate_k_steps(
     if llm_target is None:
         llm_target = llm
 
+
     gen_results = []
     for i, text in enumerate(templated_convs):
         for j in range(beam_width):
@@ -149,12 +150,11 @@ def generate_k_steps(
             )
             gen_results.append(gen_result)
 
+    len_prompt_tokens = min([len(draft_tokenizer.encode(templated_convs[i])) for i in range(len(templated_convs))])
+    available_tokens = max(0, config.max_context_length - len_prompt_tokens)
     gen_sampling_params = copy.deepcopy(sampling_params)
     gen_sampling_params.n = 1
-    verification_sampling_params = copy.deepcopy(sampling_params)
-    verification_sampling_params.n=1 #dont generate anything when verifying
-    verification_sampling_params.max_tokens=1  #dont generate anything when verifying
-    verification_sampling_params.prompt_logprobs = 20
+    gen_sampling_params.max_tokens = min(config.max_tokens, available_tokens)
 
     # print(f"Gen Results Before: {gen_results}")
     #what is the purpose of lookahead_steps?
@@ -173,20 +173,24 @@ def generate_k_steps(
         ] #4 prompts, essentially
         # print(gen_prompts[0])
         # llm_outputs = llm.generate(gen_prompts, gen_sampling_params, use_tqdm=False)
-        draft_responses = llm.completions.create(
-                        model=config.draft_model_path_rsd.split("/")[-1],
-                        prompt=gen_prompts,
-                        temperature=config.temperature,
-                        top_p=config.top_p,
-                        max_tokens=config.max_tokens,
-                        stop=["\n\n"],
-                        n=1,
-                        stream=False,
-                        extra_body={
-                            "include_stop_str_in_output": True
-                                        }
-                    ).choices
-        llm_outputs = sorted(draft_responses, key=lambda x: int(x.index))
+
+        if gen_sampling_params.max_tokens != 0:
+            draft_responses = llm.completions.create(
+                            model=config.draft_model_path_rsd.split("/")[-1],
+                            prompt=gen_prompts,
+                            temperature=config.temperature,
+                            top_p=config.top_p,
+                            max_tokens=gen_sampling_params.max_tokens,
+                            stop=["\n\n"],
+                            n=1,
+                            stream=False,
+                            extra_body={
+                                "include_stop_str_in_output": True
+                                            }
+                        ).choices
+            llm_outputs = sorted(draft_responses, key=lambda x: int(x.index))
+        else:
+            llm_outputs = []
 
         # print(llm_outputs)
         
@@ -202,7 +206,24 @@ def generate_k_steps(
         # print(len(current_gen),len(llm_outputs)) # this is 4,4
         # assert False
         # For speculative decoding, batch process all beams through target model
-        if speculative:
+
+        tokenizer = prm_tokenizer
+        if gen_sampling_params.max_tokens == 0:
+            for gen_result in current_gen:
+                # gen_text = output.outputs[0].text
+                gen_text = ''
+                gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
+                
+                gen_result.cum_prob = 0
+                # print(f"Cumulative probability (Online serving score): {gen_result.cum_prob}")
+                gen_result.first_step_text = gen_text
+                gen_result.first_step_stop_reason = "EOS"
+
+                gen_result.lookahead_text = gen_result.lookahead_text + gen_text
+                gen_result.stop_reason = "EOS"
+
+                beam_index += 1
+        elif speculative:
             # Collect all prompts with generated text for batch processing
             # verification_prompts = [
             #     gen_result.initial_prompt + output.outputs[0].text 
