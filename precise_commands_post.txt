@@ -26,3 +26,22 @@ python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_
 ONLINE SERVING
 
 python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=20 --num_iterations=20 --rm_regularizer=0
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=10 --num_iterations=20 --rm_regularizer=20
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=500 --num_iterations=20 --rm_regularizer=20
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=500 --num_iterations=200 --rm_regularizer=20 --max_tokens=128
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=400 --rm_regularizer=40 --max_tokens=64
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=8 --dataset_end=100 --num_iterations=20 --rm_regularizer=40
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=20 --rm_regularizer=40
+
+BEAM SEARCH WITH QWEN2.5-MATH-1.5B-INSTRUCT
+
+python scripts/test_time_compute.py recipes/Qwen-1B-Qwen-7B/beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --n=4 --gpu_memory_utilization=0.5 --dataset_end=500 --num_iterations=20
+
+
+

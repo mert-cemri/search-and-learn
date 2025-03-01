@@ -125,14 +125,38 @@ def main():
 
     
     # if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
-        # llm_target = LLM(
-        # model=config.target_model_path,
-        # gpu_memory_utilization=config.target_gpu_memory_utilization,
-        # enable_prefix_caching=False,
-        # seed=config.seed,
-        # tensor_parallel_size=num_gpus,
-        # max_model_len=config.max_target_model_len,
-        # )
+    if config.target_model_path != "":
+        llm_target = LLM(
+        model=config.target_model_path,
+        gpu_memory_utilization=config.target_gpu_memory_utilization,
+        enable_prefix_caching=False,
+        seed=config.seed,
+        tensor_parallel_size=num_gpus,
+        max_model_len=config.max_target_model_len,
+        )
+        start = time.time()
+        dataset = dataset.map(
+                approach_fn,
+                batched=True,
+                batch_size=config.search_batch_size,
+                fn_kwargs={"config": config, "llm": draft_client, "prm": prm_client, "llm_target": llm_target, "draft_tokenizer": draft_tokenizer, "target_tokenizer": target_tokenizer, "prm_tokenizer": prm_tokenizer},
+                desc="Running (speculative) search",
+                load_from_cache_file=False,
+            )
+
+        end = time.time()
+    else:
+        start = time.time()
+        dataset = dataset.map(
+                approach_fn,
+                batched=True,
+                batch_size=config.search_batch_size,
+                fn_kwargs={"config": config, "llm": draft_client, "prm": prm_client, "llm_target": target_client, "draft_tokenizer": draft_tokenizer, "target_tokenizer": target_tokenizer, "prm_tokenizer": prm_tokenizer},
+                desc="Running (speculative) search",
+                load_from_cache_file=False,
+            )
+
+        end = time.time()
 
     # if config.approach == "speculative_beam_search_merged_models":
     #     from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification, AutoTokenizer, AutoModel
@@ -169,17 +193,7 @@ def main():
 #             stop=[args.step_word],
 #         ).choices
 #         draft_responses = sorted(draft_responses, key=lambda x: int(x.index))
-    start = time.time()
-    dataset = dataset.map(
-            approach_fn,
-            batched=True,
-            batch_size=config.search_batch_size,
-            fn_kwargs={"config": config, "llm": draft_client, "prm": prm_client, "llm_target": target_client, "draft_tokenizer": draft_tokenizer, "target_tokenizer": target_tokenizer, "prm_tokenizer": prm_tokenizer},
-            desc="Running (speculative) search",
-            load_from_cache_file=False,
-        )
-
-    end = time.time()
+    
     runtime = end - start
 
     print(f"Runtime: {runtime}")

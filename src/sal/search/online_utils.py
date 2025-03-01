@@ -155,6 +155,10 @@ def generate_k_steps(
     gen_sampling_params = copy.deepcopy(sampling_params)
     gen_sampling_params.n = 1
     gen_sampling_params.max_tokens = min(config.max_tokens, available_tokens)
+    verification_sampling_params = copy.deepcopy(sampling_params)
+    verification_sampling_params.n=1 #dont generate anything when verifying
+    verification_sampling_params.max_tokens=1  #dont generate anything when verifying
+    verification_sampling_params.prompt_logprobs = 20
 
     # print(f"Gen Results Before: {gen_results}")
     #what is the purpose of lookahead_steps?
@@ -229,7 +233,33 @@ def generate_k_steps(
             #     gen_result.initial_prompt + output.outputs[0].text 
             #     for gen_result, output in zip(current_gen, llm_outputs)
             # ]
-            ######################### BEGIN HERE ############################
+
+            ######################## BEGINNING OF VERIFICATION TARGET LOGIT RETRIEVAL ##################
+
+            # gen_text = output.text
+            # gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
+            
+            if config.rm_regularizer != 0:
+                verification_prompts = [
+                    gen_result.initial_prompt + output.text 
+                    for gen_result, output in zip(current_gen, llm_outputs)
+                ]
+
+                verification_outputs = llm_target.generate(
+                    verification_prompts,
+                    verification_sampling_params, 
+                    use_tqdm=False
+                )
+
+                llm_target_tokenizer = llm_target.get_tokenizer()
+            else:
+                verification_outputs = llm_outputs
+                llm_target_tokenizer = prm_tokenizer
+
+            ###################### END OF VERIFICATION TARGET LOGIT RETRIEVAL ##################
+
+
+            ######################### BEGIN HERE FOR PARALLEL SERVING ############################
             processed_data = [
                 prepare_input(p, full_resp.text, tokenizer=prm_tokenizer, step_token="\n\n") 
                 for p, full_resp in zip(gen_prompts, llm_outputs)
@@ -241,10 +271,13 @@ def generate_k_steps(
             )
             step_rewards = derive_step_rewards_vllm(rewards, reward_flags)
 
-            target_model_logits = llm_target.embeddings.create(
-                model=config.target_model_path_rsd.split("/")[-1],
-                input=input_ids,
-            )
+            # THIS DOES NOT WORK BECAUSE ONLINE SERVING DOES NOT LET YOU LOOK AT EMBEDDINGS
+            # target_model_logits = llm_target.embeddings.create(
+            #     model=config.target_model_path_rsd.split("/")[-1],
+            #     input=input_ids,
+            # )
+
+
             # target_likelihoods = derive_step_rewards_vllm(target_model_logits, reward_flags)
 
             # batch_prompts = [p + ''.join(r[0] for r in responses) for _, p, responses in bad_prompts]
@@ -269,16 +302,31 @@ def generate_k_steps(
             # Pre-compute token ids and logprobs for each beam
             tokenizer = prm_tokenizer
 
-            for gen_result, output in zip(current_gen, llm_outputs):
+            for gen_result, output, verification_output in zip(current_gen, llm_outputs, verification_outputs):
                 # gen_text = output.outputs[0].text
                 gen_text = output.text
-                gen_token_ids = tokenizer.encode(gen_text, add_special_tokens=False)
-                
+                gen_token_ids = llm_target_tokenizer.encode(gen_text, add_special_tokens=False)
+
                 # Calculate log probs for each token in generated text
+                log_probs = []
+                if config.rm_regularizer != 0:
+                    prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
+                    for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
+                        if token_id in token_logprobs:
+                            log_probs.append(token_logprobs[token_id].logprob)
+                        else:
+                            all_current_logprobs = [token_logprobs[existing_token_id].logprob for existing_token_id in token_logprobs]
+                            log_probs.append(min(all_current_logprobs))
+                cum_log_probs = torch.sum(torch.tensor(log_probs))
+
+                # print(f"Cumulative log probs: {cum_log_probs}")
+                # print(f"Step rewards: {step_rewards[beam_index][-1]}")
                 # log_probs = []
                 # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
-                # gen_result.cum_prob = config.rm_regularizer * step_rewards[beam_index][-1] + target_likelihoods
-                gen_result.cum_prob = step_rewards[beam_index][-1]
+                if config.rm_regularizer != 0:
+                    gen_result.cum_prob = cum_log_probs + config.rm_regularizer * step_rewards[beam_index][-1] # (-10, 0.85)
+                else:
+                    gen_result.cum_prob = step_rewards[beam_index][-1]
                 # print(f"Cumulative probability (Online serving score): {gen_result.cum_prob}")
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.finish_reason

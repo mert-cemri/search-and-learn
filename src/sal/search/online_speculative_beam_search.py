@@ -232,16 +232,17 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
                     completions.append([candidate])
                     cum_probs.append(cum_prob)
 
-                if config.rm_regularizer > 0:
-                    scores = prm.score(prompts, completions) # |prompts| amount of scores
-                    # print(f"\nScores: {scores}\n")
-                    # time.sleep(2)
-                    agg_scores = [
-                        [aggregate_scores(s, config.agg_strategy) for s in score]
-                        for score in scores
-                    ]
-                else:
-                    agg_scores = [[0] for _ in range(config.n)]   
+                # if config.rm_regularizer > 0:
+                #     scores = prm.score(prompts, completions) # |prompts| amount of scores
+                #     # print(f"\nScores: {scores}\n")
+                #     # time.sleep(2)
+                #     agg_scores = [
+                #         [aggregate_scores(s, config.agg_strategy) for s in score]
+                #         for score in scores
+                #     ]
+                # else:
+                #     agg_scores = [[0] for _ in range(config.n)]
+                agg_scores = [[0] for _ in range(config.n)]   
 
                 """
                 Scores: [[[1.0, 1.0, 0.9609375]], [[1.0, 1.0, 0.99609375]], [[0.1640625, 0.2021484375]], [[0.6796875, 0.99609375]], [[0.99609375, 1.0, 0.953125]], [[1.0, 1.0, 0.98828125]], [[0.99609375, 1.0, 0.97265625]], [[0.99609375, 1.0, 0.95703125]]]
@@ -269,7 +270,7 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
                 assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
                 og_tilted_scores = config.rm_regularizer*agg_scores_tensor.flatten() + cum_probs_tensor.flatten()
 
-                print(f"\n ********* OG Tilted Scores (online serving): {og_tilted_scores} ********* \n")
+                # print(f"\n ********* OG Tilted Scores (online serving): {og_tilted_scores} ********* \n")
                 # time.sleep(2)
 
                 tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)

@@ -3,6 +3,8 @@
 hostname --ip-address
 MODEL="Skywork/Skywork-o1-Open-PRM-Qwen-2.5-1.5B"
 MODEL_NAME="Skywork-o1-Open-PRM-Qwen-2.5-1.5B"
+# MODEL="Skywork/Skywork-o1-Open-PRM-Qwen-2.5-7B"
+# MODEL_NAME="Skywork-o1-Open-PRM-Qwen-2.5-7B"
 
 export CUDA_VISIBLE_DEVICES=1
 python -m vllm.entrypoints.openai.api_server \
@@ -14,4 +16,4 @@ python -m vllm.entrypoints.openai.api_server \
         --trust-remote-code \
         --enforce-eager \
         --enable_prefix_caching \
-        --gpu_memory_utilization 0.5
+        --gpu_memory_utilization 0.9

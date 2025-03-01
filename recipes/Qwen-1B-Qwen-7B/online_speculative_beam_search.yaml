@@ -5,12 +5,12 @@ approach: online_speculative_beam_search
 n: 4
 search_batch_size: 1
 dataset_start: 0
-dataset_end: 100
+dataset_end: 500
 seed: 42
-gpu_memory_utilization: 0.10
-target_gpu_memory_utilization: 0.20
-max_model_len: 6000
-max_target_model_len: 6000
+gpu_memory_utilization: 0.25
+target_gpu_memory_utilization: 0.25
+max_model_len: Null
+max_target_model_len: Null
 rm_regularizer: 1
 period: 0
 max_tokens: 1024
