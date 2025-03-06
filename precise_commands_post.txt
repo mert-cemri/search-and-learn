@@ -25,4 +25,4 @@ python scripts/test_time_compute.py recipes/Speculative-Llama-3B-8B/speculative_
 
 ONLINE SERVING
 
-python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=20 --num_iterations=20 --rm_regularizer=0
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --n=4 --gpu_memory_utilization=0.15 --max_model_len=10000 --dataset_end=500 --num_iterations=20 --rm_regularizer=0
