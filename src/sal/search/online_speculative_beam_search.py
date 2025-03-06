@@ -268,19 +268,23 @@ def _beam_search(batch_of_prompts, config, llm, prm, llm_target = None, draft_to
                 cum_probs_tensor = torch.Tensor(cum_probs)
                 agg_scores_tensor = torch.Tensor(agg_scores)
                 assert agg_scores_tensor.flatten().shape == cum_probs_tensor.flatten().shape
-                og_tilted_scores = config.rm_regularizer*agg_scores_tensor.flatten() + cum_probs_tensor.flatten()
-
+                # og_tilted_scores = config.rm_regularizer*agg_scores_tensor.flatten() + cum_probs_tensor.flatten()
+                og_tilted_scores = cum_probs_tensor.flatten()
                 # print(f"\n ********* OG Tilted Scores (online serving): {og_tilted_scores} ********* \n")
                 # time.sleep(2)
 
                 tilted_scores = og_tilted_scores - torch.max(og_tilted_scores)
                 probs = torch.exp(tilted_scores)/torch.sum(torch.exp(tilted_scores))
 
+                # chosen_index = torch.argmax(probs)
+
                 try:
                     chosen_index = torch.multinomial(probs, num_samples=1)
                 except:
                     print(f"\n Tilted Scores: {tilted_scores}")
+                    print(f"OG Tilted Scores: {og_tilted_scores}")
                     print(f"Probs: {probs}")
+                    assert False
                     chosen_index = 0
                 beam.current_text += beam.next_texts[chosen_index]
 

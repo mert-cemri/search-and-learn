@@ -4,7 +4,7 @@ hostname --ip-address
 MODEL="/data/user_data/mert/spec/models_merged/Qwen2--qwen_7b_merged-qwen2model"
 MODEL_NAME="Qwen2--qwen_7b_merged-qwen2model"
 
-export CUDA_VISIBLE_DEVICES=7
+export CUDA_VISIBLE_DEVICES=0
 python -m vllm.entrypoints.openai.api_server \
         --model $MODEL \
         --served-model-name $MODEL_NAME \

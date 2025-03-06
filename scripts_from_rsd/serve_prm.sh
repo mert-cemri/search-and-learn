@@ -6,7 +6,7 @@ MODEL_NAME="Skywork-o1-Open-PRM-Qwen-2.5-1.5B"
 # MODEL="Skywork/Skywork-o1-Open-PRM-Qwen-2.5-7B"
 # MODEL_NAME="Skywork-o1-Open-PRM-Qwen-2.5-7B"
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=7
 python -m vllm.entrypoints.openai.api_server \
         --model $MODEL \
         --served-model-name $MODEL_NAME \

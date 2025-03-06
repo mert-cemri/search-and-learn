@@ -3,8 +3,10 @@
 hostname --ip-address
 MODEL="Qwen/Qwen2.5-Math-1.5B-Instruct"
 MODEL_NAME="Qwen2.5-Math-1.5B-Instruct"
+# MODEL="Qwen/Qwen2.5-Math-7B-Instruct"
+# MODEL_NAME="Qwen2.5-Math-7B-Instruct"
 
-export CUDA_VISIBLE_DEVICES=5
+export CUDA_VISIBLE_DEVICES=0
 python -m vllm.entrypoints.openai.api_server \
         --model $MODEL \
         --served-model-name $MODEL_NAME \

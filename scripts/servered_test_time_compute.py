@@ -125,7 +125,8 @@ def main():
 
     
     # if config.approach == "speculative_beam_search" or config.approach =="speculative_importance_search":
-    if config.target_model_path != "":
+    if config.target_model_path != None:
+        print(f"Using target model: {config.target_model_path}")
         llm_target = LLM(
         model=config.target_model_path,
         gpu_memory_utilization=config.target_gpu_memory_utilization,

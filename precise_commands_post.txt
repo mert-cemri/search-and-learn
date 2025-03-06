@@ -39,9 +39,22 @@ python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_spec
 
 python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=20 --rm_regularizer=40
 
-BEAM SEARCH WITH QWEN2.5-MATH-1.5B-INSTRUCT
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=20 --rm_regularizer=50
+
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --target_model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=20 --rm_regularizer=10
+
+
+######################## BEAM SEARCH WITH QWEN2.5-MATH-1.5B-INSTRUCT ########################
 
 python scripts/test_time_compute.py recipes/Qwen-1B-Qwen-7B/beam_search.yaml --model_path=Qwen/Qwen2.5-Math-1.5B-Instruct --n=4 --gpu_memory_utilization=0.5 --dataset_end=500 --num_iterations=20
 
 
+######################## SOFT BEAM SEARCH WITH QWEN2.5-MATH-7B-INSTRUCT ########################
+python scripts/servered_test_time_compute.py recipes/Qwen-1B-Qwen-7B/online_speculative_beam_search.yaml --model_path=Qwen/Qwen2.5-Math-7B-Instruct \
+--draft_model_path_rsd=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --dataset_end=100 --num_iterations=20 --rm_regularizer=0
+
+
+######################## BEAM SEARCH WITH QWEN2.5-MATH-7B-INSTRUCT ########################
+
+python scripts/test_time_compute.py recipes/Qwen-1B-Qwen-7B/beam_search.yaml --model_path=Qwen/Qwen2.5-Math-7B-Instruct --n=4 --gpu_memory_utilization=0.5 --dataset_end=500 --num_iterations=20
 

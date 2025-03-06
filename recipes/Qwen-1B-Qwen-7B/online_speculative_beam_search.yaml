@@ -8,7 +8,7 @@ dataset_start: 0
 dataset_end: 500
 seed: 42
 gpu_memory_utilization: 0.25
-target_gpu_memory_utilization: 0.25
+target_gpu_memory_utilization: 0.5
 max_model_len: Null
 max_target_model_len: Null
 rm_regularizer: 1

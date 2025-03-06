@@ -265,11 +265,20 @@ def generate_k_steps(
                 for p, full_resp in zip(gen_prompts, llm_outputs)
             ]
             input_ids, steps, reward_flags = zip(*processed_data)
+            
+            # Check and truncate if necessary to fit context window
+            truncated_input_ids = [
+                ids[:config.max_context_length] for ids in input_ids
+            ]
+            truncated_reward_flags = [
+                flags[:config.max_context_length] for flags in reward_flags
+            ]
+            
             rewards = prm.embeddings.create(
                 model=config.prm_path_rsd.split("/")[-1],
-                input=input_ids,
+                input=truncated_input_ids,
             )
-            step_rewards = derive_step_rewards_vllm(rewards, reward_flags)
+            step_rewards = derive_step_rewards_vllm(rewards, truncated_reward_flags)
 
             # THIS DOES NOT WORK BECAUSE ONLINE SERVING DOES NOT LET YOU LOOK AT EMBEDDINGS
             # target_model_logits = llm_target.embeddings.create(
@@ -308,7 +317,7 @@ def generate_k_steps(
                 gen_token_ids = llm_target_tokenizer.encode(gen_text, add_special_tokens=False)
 
                 # Calculate log probs for each token in generated text
-                log_probs = []
+                log_probs = [0]
                 if config.rm_regularizer != 0:
                     prompt_logprobs = verification_output.prompt_logprobs[-len(gen_token_ids):]
                     for token_id, token_logprobs in zip(gen_token_ids, prompt_logprobs):
@@ -317,16 +326,33 @@ def generate_k_steps(
                         else:
                             all_current_logprobs = [token_logprobs[existing_token_id].logprob for existing_token_id in token_logprobs]
                             log_probs.append(min(all_current_logprobs))
-                cum_log_probs = torch.sum(torch.tensor(log_probs))
+                cum_log_prob = torch.sum(torch.tensor(log_probs))/len(log_probs)
 
                 # print(f"Cumulative log probs: {cum_log_probs}")
                 # print(f"Step rewards: {step_rewards[beam_index][-1]}")
                 # log_probs = []
                 # gen_result.cum_prob = torch.sum(torch.tensor(log_probs))
+
+
+                # try:
+                # print(f"Cum log prob: {cum_log_prob}, Step rewards: {step_rewards[beam_index]}")
                 if config.rm_regularizer != 0:
-                    gen_result.cum_prob = cum_log_probs + config.rm_regularizer * step_rewards[beam_index][-1] # (-10, 0.85)
+                    if len(step_rewards[beam_index]) > 0: #sometimes this is an empty list
+                        gen_result.cum_prob = cum_log_prob + config.rm_regularizer * step_rewards[beam_index][-1] # (-10, 0.85)..... # (-500, 0.85)
+                    else:
+                        gen_result.cum_prob = cum_log_prob
                 else:
-                    gen_result.cum_prob = step_rewards[beam_index][-1]
+                    if len(step_rewards[beam_index]) > 0:
+                        gen_result.cum_prob = step_rewards[beam_index][-1]
+                    else:
+                        gen_result.cum_prob = 0
+                # except:
+                #     print(f"Error at beam index: {beam_index}")
+                #     print(f"Step rewards: {step_rewards[beam_index]}")
+                #     print(f"Log probs: {log_probs}")
+                #     print(f"Cum log prob: {cum_log_prob}")
+                #     print(f"Config rm regularizer: {config.rm_regularizer}")
+                #     assert False
                 # print(f"Cumulative probability (Online serving score): {gen_result.cum_prob}")
                 gen_result.first_step_text = gen_text
                 gen_result.first_step_stop_reason = output.finish_reason
